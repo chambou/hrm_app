@@ -3,6 +3,7 @@ import os
 import plotly.graph_objects as go
 import webbrowser
 from utils import *
+import copy
 from dash import Dash, dcc, html, Input, Output, State
 
 # ============================================================
@@ -58,6 +59,8 @@ star_ra, star_dec, star_mag = load_stars(field_name)
 # ============================================================
 # UTILS
 # ============================================================
+
+
 def nearest_z(ra_val, dec_val, Z):
     ix = np.abs(ra_grid - ra_val).argmin()
     iy = np.abs(dec_grid - dec_val).argmin()
@@ -68,7 +71,7 @@ def z_at_galaxies(mask,Z):
     iy = np.abs(dec_grid[:, None] - gal_dec[mask]).argmin(axis=0)
     return Z[iy, ix]
 
-def make_sky_figure(gal_mask=None, show_gal=False, show_stars=True, plot_type="strehl"):
+def make_base_heatmap(plot_type):
     fig = go.Figure()
 
     if plot_type == "strehl":
@@ -103,6 +106,42 @@ def make_sky_figure(gal_mask=None, show_gal=False, show_stars=True, plot_type="s
             )
         )
     )
+
+    fig.update_layout(
+        xaxis=dict(title="RA (deg)", autorange="reversed", gridcolor=color_features),
+        yaxis=dict(title="Dec (deg)", scaleanchor="x", gridcolor=color_features),
+        template="plotly_dark",
+        paper_bgcolor=bckg_color,
+        plot_bgcolor=bckg_color,
+        margin=dict(l=70, r=40, t=100, b=60),  # increase top margin
+    )
+
+    # Add a "title box" annotation
+    fig.add_annotation(
+        x=-0.1, 
+        y=1.2,                     # slightly above plot
+        xref="paper",
+        yref="paper",
+        text=(
+            "<b>HARMONI – "+field_name+" field</b><br>"
+            "<span style='font-size:14px; color:#BBBBBB'>"
+            "Predicted performance of the Multi-Conjugate Adaptive Optics at 2.2 microns </span>"
+        ),
+        showarrow=False,
+        xanchor="left",
+        yanchor="top",
+        align="left",
+        font=dict(size=28, family="Arial Black, Arial, sans-serif", color="#FFFFFF"),
+        bgcolor=bckg_color,           # dark box behind title
+        bordercolor=bckg_color,
+        borderwidth=1,
+        borderpad=6,
+    )
+
+    return fig
+
+
+def add_overlays(fig, gal_mask=None, show_gal=False, show_stars=True):
 
     if show_gal and gal_mask is not None and np.any(gal_mask):
         # Halo
@@ -170,37 +209,14 @@ def make_sky_figure(gal_mask=None, show_gal=False, show_stars=True, plot_type="s
         )
 
 
-    fig.update_layout(
-        xaxis=dict(title="RA (deg)", autorange="reversed", gridcolor=color_features),
-        yaxis=dict(title="Dec (deg)", scaleanchor="x", gridcolor=color_features),
-        template="plotly_dark",
-        paper_bgcolor=bckg_color,
-        plot_bgcolor=bckg_color,
-        margin=dict(l=70, r=40, t=100, b=60),  # increase top margin
-    )
+# ============================================================
+# Create base figures
+# ============================================================
+BASE_FIGURES = {
+    "strehl": make_base_heatmap("strehl"),
+    "fwhm": make_base_heatmap("fwhm"),
+}
 
-    # Add a "title box" annotation
-    fig.add_annotation(
-        x=-0.1, 
-        y=1.2,                     # slightly above plot
-        xref="paper",
-        yref="paper",
-        text=(
-            "<b>HARMONI – "+field_name+" field</b><br>"
-            "<span style='font-size:14px; color:#BBBBBB'>"
-            "Predicted performance of the Multi-Conjugate Adaptive Optics at 2.2 microns </span>"
-        ),
-        showarrow=False,
-        xanchor="left",
-        yanchor="top",
-        align="left",
-        font=dict(size=28, family="Arial Black, Arial, sans-serif", color="#FFFFFF"),
-        bgcolor=bckg_color,           # dark box behind title
-        bordercolor=bckg_color,
-        borderwidth=1,
-        borderpad=6,
-    )
-    return fig
 
 # ============================================================
 # DASH APP
@@ -232,7 +248,7 @@ app.layout = html.Div(
             children=[
                 dcc.Graph(
                     id="sky-map",
-                    figure=make_sky_figure(),
+                    figure=BASE_FIGURES["strehl"],
                     style={"height": "100%"},
                     config={"scrollZoom": True}
                 )
@@ -244,7 +260,9 @@ app.layout = html.Div(
             style={
                 "width": "2px",
                 "backgroundColor": color_features,
-                "margin": "0 6px"
+                "height": "100%",   # fill parent
+                "minHeight": "100%", # safety
+                "marginRight": "10px"
             }
         ),
 
@@ -263,7 +281,8 @@ app.layout = html.Div(
                 html.Div(
                     style={
                         "flex": "0 0 auto",
-                        "padding": "30px",
+                        "paddingLeft": "40px",   # only left,
+                        "padding": "40px",
                         "backgroundColor": bckg_color_control,
                         "borderRadius": "8px"
                     },
@@ -476,7 +495,8 @@ def update_galaxies(z_range, display_options,plot_type):
     show_gal = "gal" in display_options
     show_stars = "stars" in display_options
 
-    sky_fig = make_sky_figure(mask, show_gal=show_gal, show_stars=show_stars, plot_type=plot_type)
+    fig = copy.deepcopy(BASE_FIGURES[plot_type])
+    add_overlays(fig, gal_mask=mask, show_gal=show_gal, show_stars=show_stars)
 
     if np.any(mask):
         zg = z_at_galaxies(mask,Z)
@@ -517,7 +537,7 @@ def update_galaxies(z_range, display_options,plot_type):
             plot_bgcolor=bckg_color
         )
 
-    return sky_fig, gal_fig
+    return fig, gal_fig
 
 # ============================================================
 # MAIN
