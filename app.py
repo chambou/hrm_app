@@ -9,14 +9,14 @@ from dash import Dash, dcc, html, Input, Output, State
 # CONFIG
 # ============================================================
 # Récupérer le port fourni par Render (ou utiliser 8050 localement)
-PORT = int(os.environ.get("PORT", 8050))
+PORT = int(os.environ.get("PORT", 10000))
 HOST = "0.0.0.0"  # Écouter toutes les interfaces
 
 min_FWHM = 10
 max_FWHM = 20
 nbin_SR = 40
 nbin_FWHM = 40
-N_ra, N_dec = 600, 600
+N_ra, N_dec = 300, 300
 bckg_color = "#212121"#"rgba(20, 20, 20, 1)"
 color_features = "#065464"#"rgba(23, 240, 186, 0.6)"
 bckg_color_control = "#065464"#"rgba(23, 240, 186, 0.6)"

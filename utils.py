@@ -165,7 +165,7 @@ def generate_SR_map(N_ra, N_dec, field_name, seeing_conditions):
     Z_fwhm = griddata(points, values_FWHM, (RA, DEC), method="linear")
     Z_fwhm = np.ma.masked_invalid(Z_fwhm)
 
-    return RA_i,DEC_i, RA, DEC, Z_sr, Z_fwhm
+    return RA_i.astype(np.float32),DEC_i.astype(np.float32), RA.astype(np.float32), DEC.astype(np.float32), Z_sr.astype(np.float32), Z_fwhm.astype(np.float32)
 
 
 def load_stars(field_name):
