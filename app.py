@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import plotly.graph_objects as go
 import webbrowser
 from utils import *
@@ -7,8 +8,10 @@ from dash import Dash, dcc, html, Input, Output, State
 # ============================================================
 # CONFIG
 # ============================================================
-HOST = "127.0.0.1"
-PORT = 8050
+# Récupérer le port fourni par Render (ou utiliser 8050 localement)
+PORT = int(os.environ.get("PORT", 8050))
+HOST = "0.0.0.0"  # Écouter toutes les interfaces
+
 min_FWHM = 10
 max_FWHM = 20
 nbin_SR = 40
@@ -520,12 +523,10 @@ def update_galaxies(z_range, display_options,plot_type):
 # MAIN
 # ============================================================
 if __name__ == "__main__":
-
     # Open a public tunnel to your Dash app
-    #public_url = ngrok.connect(8050)
     #print(f"Public URL: {public_url}")
     #app.run(port=8050)
     url = f"http://{HOST}:{PORT}/"
-    print(f"Opening {url}")
-    webbrowser.open(url)
-    app.run(debug=True, host=HOST, port=PORT)
+    #print(f"Opening {url}")
+    #webbrowser.open(url)
+    app.run(debug=False, host=HOST, port=PORT)
