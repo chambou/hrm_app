@@ -10,8 +10,8 @@ from dash import Dash, dcc, html, Input, Output, State
 # CONFIG
 # ============================================================
 # Récupérer le port fourni par Render (ou utiliser 8050 localement)
-PORT = int(os.environ.get("PORT", 10000))
-HOST = "0.0.0.0"  # Écouter toutes les interfaces
+PORT = int(os.environ.get("PORT", 8050))
+HOST = "127.0.0.1"
 
 min_FWHM = 10
 max_FWHM = 20
@@ -222,6 +222,7 @@ BASE_FIGURES = {
 # DASH APP
 # ============================================================
 app = Dash(__name__)
+server = app.server
 
 app.layout = html.Div(
     style={
@@ -542,11 +543,16 @@ def update_galaxies(z_range, display_options,plot_type):
 # ============================================================
 # MAIN
 # ============================================================
+# if __name__ == "__main__":
+#     # Open a public tunnel to your Dash app
+#     #print(f"Public URL: {public_url}")
+#     #app.run(port=8050)
+#     url = f"http://{HOST}:{PORT}/"
+#     #print(f"Opening {url}")
+#     #webbrowser.open(url)
+#     app.run(debug=False, host=HOST, port=PORT)
 if __name__ == "__main__":
-    # Open a public tunnel to your Dash app
-    #print(f"Public URL: {public_url}")
-    #app.run(port=8050)
-    url = f"http://{HOST}:{PORT}/"
-    #print(f"Opening {url}")
-    #webbrowser.open(url)
-    app.run(debug=False, host=HOST, port=PORT)
+    PORT = int(os.environ.get("PORT", 8050))
+    HOST = "127.0.0.1"
+    print(f"Starting Dash on http://{HOST}:{PORT}")
+    app.run(debug=True, host=HOST, port=PORT)
