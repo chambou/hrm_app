@@ -9,7 +9,6 @@ from dash import Dash, dcc, html, Input, Output, State
 # ============================================================
 # CONFIG
 # ============================================================
-# Récupérer le port fourni par Render (ou utiliser 8050 localement)
 PORT = int(os.environ.get("PORT", 8050))
 HOST = "127.0.0.1"
 
@@ -185,6 +184,7 @@ def add_overlays(fig, gal_mask=None, show_gal=False, show_stars=True):
                 showlegend=False 
             )
         )
+    return fig
 
 
 # ============================================================
@@ -348,7 +348,7 @@ app.layout = html.Div(
                                     ]
                                 ),
 
-                                # Middle-right: Strehl / FWHM
+                                # Middle-right: Strehl / FWHM + Histogram mode
                                 html.Div(
                                     children=[
                                         html.Label("Plot type:", style={"fontWeight": "bold"}),
@@ -361,14 +361,35 @@ app.layout = html.Div(
                                                         {"label": "Strehl Ratio", "value": "strehl"},
                                                         {"label": "FWHM", "value": "fwhm"}
                                                     ],
-                                                    value="strehl",  # default selection
+                                                    value="strehl",
                                                     inline=True,
-                                                    labelStyle={"marginRight": "16px"}  # space between options
+                                                    labelStyle={"marginRight": "16px"}
                                                 )
                                             ]
                                         )
                                     ]
-                                )
+                                ),
+
+                                html.Div(
+                                    children=[
+                                        html.Label("Histogram mode:", style={"fontWeight": "bold"}),
+                                        html.Div(
+                                            style={"marginTop": "12px"},
+                                            children=[
+                                                dcc.RadioItems(
+                                                    id="hist-mode",
+                                                    options=[
+                                                            {"label": "Differential", "value": "diff"},
+                                                            {"label": "Cumulative", "value": "cumu"},
+                                                        ],
+                                                    value="diff",
+                                                    inline=True,
+                                                    labelStyle={"marginRight": "16px"}
+                                                    )
+                                            ]
+                                        )
+                                    ]
+                                ),
                             ]
                         ),
 
@@ -465,9 +486,10 @@ def evaluate_position(_, ra_val, dec_val,plot_type):
     Output("galaxy-z-plot", "figure"),
     Input("z-slider", "value"),
     Input("display-options", "value"),
-    Input("plot-type", "value")
+    Input("plot-type", "value"),
+    Input("hist-mode", "value"),
 )
-def update_galaxies(z_range, display_options,plot_type):
+def update_galaxies(z_range, display_options,plot_type, hist_mode):
 
     if plot_type == "strehl":
         Z = Z_sr
@@ -493,7 +515,7 @@ def update_galaxies(z_range, display_options,plot_type):
     show_stars = "stars" in display_options
 
     fig = copy.deepcopy(BASE_FIGURES[plot_type])
-    add_overlays(fig, gal_mask=mask, show_gal=show_gal, show_stars=show_stars)
+    fig = add_overlays(fig, gal_mask=mask, show_gal=show_gal, show_stars=show_stars)
 
     if np.any(mask):
         zg = z_at_galaxies(mask,Z)
@@ -505,21 +527,25 @@ def update_galaxies(z_range, display_options,plot_type):
         else:
             zg_clipped = zg
 
+
+        is_cumu = (hist_mode == "cumu")
+
         gal_fig = go.Figure(
             go.Histogram(
                 x=zg_clipped,
-                nbinsx=nbin_Z,                  # number of bins
-                histnorm='percent',         # normalize to percentage
-                marker=dict(
-                    color="orange", opacity=0.9
-                ),
+                nbinsx=nbin_Z,
+                histnorm="percent",
+                cumulative=dict(enabled=is_cumu, direction="increasing"),
+                marker=dict(color="orange", opacity=0.9),
             )
         )
 
+        y_title = "Sky Coverage (in % per bins)" if not is_cumu else "Sky Coverage (cumulative %)"
+
         gal_fig.update_layout(
-            title= label_plot + " value for selected galaxies at 2.2 microns",
-            xaxis=dict(title=label_plot,gridcolor=color_features,range=[min_Z, max_Z]),
-            yaxis=dict(title="Sky Coverage (in % per bins)",gridcolor=color_features),
+            title=label_plot + " value for selected galaxies at 2.2 microns",
+            xaxis=dict(title=label_plot, gridcolor=color_features, range=[min_Z, max_Z]),
+            yaxis=dict(title=y_title, gridcolor=color_features, range=[0, 100] if is_cumu else None),
             template="plotly_dark",
             paper_bgcolor=bckg_color,
             plot_bgcolor=bckg_color,
@@ -542,4 +568,4 @@ def update_galaxies(z_range, display_options,plot_type):
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 8050))
     HOST = os.environ.get("HOST", "127.0.0.1")
-    app.run(debug=True, host=HOST, port=PORT)
+    app.run(debug=True, host=HOST, port=PORT, use_reloader=False)
