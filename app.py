@@ -116,28 +116,6 @@ def make_base_heatmap(plot_type):
         margin=dict(l=70, r=40, t=100, b=60),  # increase top margin
     )
 
-    # Add a "title box" annotation
-    fig.add_annotation(
-        x=-0.1, 
-        y=1.2,                     # slightly above plot
-        xref="paper",
-        yref="paper",
-        text=(
-            "<b>HARMONI – "+field_name+" field</b><br>"
-            "<span style='font-size:14px; color:#BBBBBB'>"
-            "Predicted performance of the Multi-Conjugate Adaptive Optics at 2.2 microns </span>"
-        ),
-        showarrow=False,
-        xanchor="left",
-        yanchor="top",
-        align="left",
-        font=dict(size=28, family="Arial Black, Arial, sans-serif", color="#FFFFFF"),
-        bgcolor=bckg_color,           # dark box behind title
-        bordercolor=bckg_color,
-        borderwidth=1,
-        borderpad=6,
-    )
-
     return fig
 
 
@@ -222,6 +200,7 @@ BASE_FIGURES = {
 # DASH APP
 # ============================================================
 app = Dash(__name__)
+app.title = f"HARMONI – {field_name}"
 server = app.server
 
 app.layout = html.Div(
@@ -238,23 +217,40 @@ app.layout = html.Div(
     },
     children=[
 
-        # ---------------- Left column: Sky map
+        # ---------------- Left column: Title + Sky map
         html.Div(
             style={
                 "flex": "1",
                 "height": "100%",
                 "paddingRight": "6px",
-                "marginTop": "5px"
+                "marginTop": "5px",
+                "display": "flex",
+                "flexDirection": "column",
             },
             children=[
+                # Title (HTML, robuste)
+                html.Div(
+                    style={"padding": "8px 12px"},
+                    children=[
+                        html.Div(f"HARMONI – {field_name} field",
+                                style={"fontSize": 28, "fontWeight": "800"}),
+                        html.Div(
+                            "Predicted performance of the Multi-Conjugate Adaptive Optics at 2.2 microns",
+                            style={"fontSize": 14, "color": "#BBBBBB"}
+                        ),
+                    ],
+                ),
+
+                # Sky map
                 dcc.Graph(
                     id="sky-map",
                     figure=BASE_FIGURES["strehl"],
-                    style={"height": "100%"},
+                    style={"flex": "1"},              # prend le reste de la hauteur
                     config={"scrollZoom": True}
-                )
+                ),
             ]
         ),
+
 
         # ---------------- Vertical divider
         html.Div(
@@ -543,16 +539,7 @@ def update_galaxies(z_range, display_options,plot_type):
 # ============================================================
 # MAIN
 # ============================================================
-# if __name__ == "__main__":
-#     # Open a public tunnel to your Dash app
-#     #print(f"Public URL: {public_url}")
-#     #app.run(port=8050)
-#     url = f"http://{HOST}:{PORT}/"
-#     #print(f"Opening {url}")
-#     #webbrowser.open(url)
-#     app.run(debug=False, host=HOST, port=PORT)
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 8050))
-    HOST = "127.0.0.1"
-    print(f"Starting Dash on http://{HOST}:{PORT}")
+    HOST = os.environ.get("HOST", "127.0.0.1")
     app.run(debug=True, host=HOST, port=PORT)
