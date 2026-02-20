@@ -1,7 +1,0 @@
-numpy
-pandas
-dash
-plotly
-scipy
-astropy
-gunicorn
