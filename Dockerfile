@@ -2,7 +2,7 @@ FROM python:3.10
 
 WORKDIR /app
 
-COPY hrm-app/ /app/
+COPY hrm_app/ /app/
 
 RUN pip install --no-cache-dir -r requirements.txt
 
