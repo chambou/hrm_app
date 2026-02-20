@@ -1,1 +1,2 @@
-hrm_app_backup/
+__pycache__/
+*.pyc
