@@ -35,7 +35,6 @@ max_SR = Z_sr.max()
 # ============================================================
 # GALAXY CATALOG
 # ============================================================
-
 gal_ra, gal_dec, gal_z = load_galaxies(field_name)
 # Mask
 ra_min, ra_max = ra_grid.min(), ra_grid.max()
@@ -52,14 +51,11 @@ gal_z   = gal_z[mask]
 # ============================================================
 # STAR CATALOG
 # ============================================================
-
 star_ra, star_dec, star_mag = load_stars(field_name)
 
 # ============================================================
 # UTILS
 # ============================================================
-
-
 def nearest_z(ra_val, dec_val, Z):
     ix = np.abs(ra_grid - ra_val).argmin()
     iy = np.abs(dec_grid - dec_val).argmin()
@@ -80,7 +76,7 @@ def make_base_heatmap(plot_type):
         label_plot = "Strehl Ratio"
         min_Z = min_SR
         max_Z = max_SR
-    elif plot_type == "fwhm":
+    else:
         Z = Z_fwhm
         label_Z = "FWHM (mas)"
         label_cursor = "FWHM"
@@ -530,17 +526,31 @@ def update_galaxies(z_range, display_options,plot_type, hist_mode):
 
         is_cumu = (hist_mode == "cumu")
 
+        # Cumulative direction:
+        # - For SR: want % of galaxies with SR >= x  -> decreasing cumulative
+        # - For FWHM (and SR in differential): keep increasing as before
+        cumu_direction = "increasing"
+        if is_cumu and plot_type == "strehl":
+            cumu_direction = "decreasing"
+
         gal_fig = go.Figure(
             go.Histogram(
                 x=zg_clipped,
                 nbinsx=nbin_Z,
                 histnorm="percent",
-                cumulative=dict(enabled=is_cumu, direction="increasing"),
+                cumulative=dict(enabled=is_cumu, direction=cumu_direction),
                 marker=dict(color="orange", opacity=0.9),
             )
         )
 
-        y_title = "Sky Coverage (in % per bins)" if not is_cumu else "Sky Coverage (cumulative %)"
+        if not is_cumu:
+            y_title = "Galaxies (%) per bin"
+        else:
+            if plot_type == "strehl":
+                y_title = "Galaxies with SR ≥ x (%)"
+            else:  # fwhm
+                y_title = "Galaxies with FWHM ≤ x (%)"
+
 
         gal_fig.update_layout(
             title=label_plot + " value for selected galaxies at 2.2 microns",
@@ -567,5 +577,5 @@ def update_galaxies(z_range, display_options,plot_type, hist_mode):
 # ============================================================
 if __name__ == "__main__":
     PORT = int(os.environ.get("PORT", 8050))
-    HOST = os.environ.get("HOST", "127.0.0.1")
+    HOST = os.environ.get("HOST", "127.0.0.2")
     app.run(debug=True, host=HOST, port=PORT, use_reloader=False)
