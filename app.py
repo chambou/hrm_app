@@ -190,7 +190,6 @@ def add_overlays(fig, gal_mask=None, show_gal=False, show_stars=True):
         )
     return fig
 
-
 # ============================================================
 # DASH APP
 # ============================================================
@@ -199,6 +198,7 @@ app.title = f"HARMONI – {field_name}"
 server = app.server
 
 app.layout = html.Div(
+    className="app-container",
     style={
         "width": "99vw",
         "height": "99vh",
@@ -208,15 +208,16 @@ app.layout = html.Div(
         "boxSizing": "border-box",
         "fontFamily": "Arial",
         "display": "flex",
-        "gap": "0px"
+        "gap": "0px",
     },
     children=[
         # Stores: keep current maps + base figs
         dcc.Store(id="map-store"),
         dcc.Store(id="basefig-store"),
 
-        # ---------------- Left column
+        # ---------------- Left column: Title + Sky map
         html.Div(
+            className="left-panel",
             style={
                 "flex": "1",
                 "height": "100%",
@@ -226,23 +227,31 @@ app.layout = html.Div(
                 "flexDirection": "column",
             },
             children=[
+                # Title
                 html.Div(
                     style={"padding": "8px 12px"},
                     children=[
-                        html.Div(f"HARMONI – {field_name} field", style={"fontSize": 28, "fontWeight": "800"}),
+                        html.Div(
+                            f"HARMONI – {field_name} field",
+                            className="title-main",
+                            style={"fontSize": 28, "fontWeight": "800"},
+                        ),
                         html.Div(
                             "Predicted performance of the Multi-Conjugate Adaptive Optics at 2.2 microns",
-                            style={"fontSize": 14, "color": "#BBBBBB"}
+                            className="title-sub",
+                            style={"fontSize": 14, "color": "#BBBBBB"},
                         ),
                     ],
                 ),
+
+                # Sky map
                 dcc.Graph(
                     id="sky-map",
-                    figure=go.Figure(),   # filled by callback
+                    figure=go.Figure(),  # filled by callback
                     style={"flex": "1"},
-                    config={"scrollZoom": True}
+                    config={"scrollZoom": True},
                 ),
-            ]
+            ],
         ),
 
         # ---------------- Vertical divider
@@ -252,53 +261,72 @@ app.layout = html.Div(
                 "backgroundColor": color_features,
                 "height": "100%",
                 "minHeight": "100%",
-                "marginRight": "10px"
+                "marginRight": "10px",
             }
         ),
 
-        # ---------------- Right column
+        # ---------------- Right column: Controls + bottom plot
         html.Div(
+            className="right-panel",
             style={
                 "flex": "1",
                 "height": "100%",
                 "display": "flex",
                 "flexDirection": "column",
-                "gap": "0px"
+                "gap": "0px",
             },
             children=[
+                # Top right: Controls
                 html.Div(
+                    className="controls-panel",
                     style={
                         "flex": "0 0 auto",
                         "paddingLeft": "40px",
                         "padding": "40px",
                         "backgroundColor": bckg_color_control,
-                        "borderRadius": "8px"
+                        "borderRadius": "8px",
                     },
                     children=[
+                        # ---- RA/Dec row
                         html.Div(
+                            className="coord-row",
                             style={"display": "flex", "alignItems": "center", "gap": "10px"},
                             children=[
                                 html.Label("RA (deg):"),
-                                dcc.Input(id="input-ra", type="number", step=0.001,
-                                          style={"backgroundColor": "white", "color": "black"}),
+                                dcc.Input(
+                                    id="input-ra",
+                                    type="number",
+                                    step=0.001,
+                                    style={"backgroundColor": "white", "color": "black"},
+                                ),
                                 html.Label("Dec (deg):"),
-                                dcc.Input(id="input-dec", type="number", step=0.001,
-                                          style={"backgroundColor": "white", "color": "black"}),
+                                dcc.Input(
+                                    id="input-dec",
+                                    type="number",
+                                    step=0.001,
+                                    style={"backgroundColor": "white", "color": "black"},
+                                ),
                                 html.Button(
                                     "Evaluate metric",
                                     id="eval-button",
-                                    style={"backgroundColor": "#333", "color": "white", "border": "1px solid #555",
-                                           "padding": "6px 12px"}
+                                    style={
+                                        "backgroundColor": "#333",
+                                        "color": "white",
+                                        "border": "1px solid #555",
+                                        "padding": "6px 12px",
+                                    },
                                 ),
-                                html.Div(id="eval-output", style={"marginLeft": "12px"})
-                            ]
+                                html.Div(id="eval-output", style={"marginLeft": "12px"}),
+                            ],
                         ),
 
+                        # ---- Options row (clean)
                         html.Div(
-                            style={"display": "flex", "marginTop": "20px", "gap": "60px"},
+                            className="options-row",
+                            style={"marginTop": "20px"},
                             children=[
-                                # Seeing conditions
                                 html.Div(
+                                    className="opt-block",
                                     children=[
                                         html.Label("Seeing conditions:", style={"fontWeight": "bold"}),
                                         html.Div(
@@ -312,14 +340,15 @@ app.layout = html.Div(
                                                     ],
                                                     value=DEFAULT_SEEING,
                                                     inline=True,
-                                                    labelStyle={"marginRight": "16px"}
+                                                    labelStyle={"marginRight": "16px"},
                                                 )
-                                            ]
-                                        )
-                                    ]
+                                            ],
+                                        ),
+                                    ],
                                 ),
 
                                 html.Div(
+                                    className="opt-block",
                                     children=[
                                         html.Label("NGS asterisms:", style={"fontWeight": "bold"}),
                                         html.Div(
@@ -332,17 +361,17 @@ app.layout = html.Div(
                                                         {"label": "2–3 NGS", "value": 2},
                                                         {"label": "1–3 NGS", "value": 1},
                                                     ],
-                                                    value=1,  # current behavior
+                                                    value=1,
                                                     inline=True,
                                                     labelStyle={"marginRight": "16px"},
                                                 )
                                             ],
                                         ),
-                                    ]
+                                    ],
                                 ),
 
-                                # Display options
                                 html.Div(
+                                    className="opt-block",
                                     children=[
                                         html.Label("Display options:", style={"fontWeight": "bold"}),
                                         html.Div(
@@ -352,19 +381,19 @@ app.layout = html.Div(
                                                     id="display-options",
                                                     options=[
                                                         {"label": "Show Galaxies", "value": "gal"},
-                                                        {"label": "Show Stars", "value": "stars"}
+                                                        {"label": "Show Stars", "value": "stars"},
                                                     ],
                                                     value=["stars"],
                                                     inline=True,
-                                                    inputStyle={"marginRight": "6px"}
+                                                    inputStyle={"marginRight": "6px"},
                                                 )
-                                            ]
-                                        )
-                                    ]
+                                            ],
+                                        ),
+                                    ],
                                 ),
 
-                                # Plot type
                                 html.Div(
+                                    className="opt-block",
                                     children=[
                                         html.Label("Plot type:", style={"fontWeight": "bold"}),
                                         html.Div(
@@ -374,19 +403,19 @@ app.layout = html.Div(
                                                     id="plot-type",
                                                     options=[
                                                         {"label": "Strehl Ratio", "value": "strehl"},
-                                                        {"label": "FWHM", "value": "fwhm"}
+                                                        {"label": "FWHM", "value": "fwhm"},
                                                     ],
                                                     value="strehl",
                                                     inline=True,
-                                                    labelStyle={"marginRight": "16px"}
+                                                    labelStyle={"marginRight": "16px"},
                                                 )
-                                            ]
-                                        )
-                                    ]
+                                            ],
+                                        ),
+                                    ],
                                 ),
 
-                                # Histogram mode
                                 html.Div(
+                                    className="opt-block",
                                     children=[
                                         html.Label("Histogram mode:", style={"fontWeight": "bold"}),
                                         html.Div(
@@ -400,46 +429,62 @@ app.layout = html.Div(
                                                     ],
                                                     value="diff",
                                                     inline=True,
-                                                    labelStyle={"marginRight": "16px"}
+                                                    labelStyle={"marginRight": "16px"},
                                                 )
-                                            ]
-                                        )
-                                    ]
+                                            ],
+                                        ),
+                                    ],
                                 ),
-                            ]
+                            ],
                         ),
 
-                        html.Div(style={"marginTop": "20px"}, children=[
-                            html.Label("Galaxy redshift range", style={"fontWeight": "bold"}),
-                            html.Div(
-                                style={"marginTop": "12px"},
-                                children=[
-                                    dcc.RangeSlider(
-                                        id="z-slider",
-                                        min=0.0,
-                                        max=10.0,
-                                        step=1,
-                                        value=[0, 10.0],
-                                        tooltip={"placement": "bottom", "always_visible": True}
-                                    )
-                                ]
-                            )
-                        ])
-                    ]
+                        # ---- Slider
+                        html.Div(
+                            style={"marginTop": "20px"},
+                            children=[
+                                html.Label("Galaxy redshift range", style={"fontWeight": "bold"}),
+                                html.Div(
+                                    style={"marginTop": "12px"},
+                                    children=[
+                                        dcc.RangeSlider(
+                                            id="z-slider",
+                                            min=0.0,
+                                            max=10.0,
+                                            step=1,
+                                            value=[0, 10.0],
+                                            tooltip={"placement": "bottom", "always_visible": True},
+                                        )
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
                 ),
 
+                # ---------------- Horizontal divider
                 html.Div(
-                    style={"height": "2px", "backgroundColor": color_features, "margin": "6px 0"}
+                    style={
+                        "height": "2px",
+                        "backgroundColor": color_features,
+                        "margin": "6px 0",
+                    }
                 ),
 
+                # ---------------- Bottom right: Galaxy plot
                 html.Div(
                     style={"flex": "1", "height": "100%", "padding": "40px"},
-                    children=[dcc.Graph(id="galaxy-z-plot", style={"height": "100%"})]
-                )
-            ]
-        )
-    ]
+                    children=[
+                        dcc.Graph(
+                            id="galaxy-z-plot",
+                            style={"height": "100%"},
+                        )
+                    ],
+                ),
+            ],
+        ),
+    ],
 )
+
 
 # ============================================================
 # CALLBACK 1: recompute maps when seeing and ngs mode change (ONLY Z arrays + figs)
