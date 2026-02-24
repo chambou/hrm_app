@@ -199,7 +199,8 @@ def generate_SR_map_from_json(N_ra, N_dec, field_name, seeing_conditions, min_ng
 
 def load_stars(field_name):
     data = pd.read_csv(DATA_DIR / f"{field_name}_stars.csv")
-    return data["ra"].to_numpy(), data["dec"].to_numpy(), data["hSyntMag"].to_numpy()
+    data_filtered = data[data["hSyntMag"] < 20.5]
+    return data_filtered["ra"].to_numpy(), data_filtered["dec"].to_numpy(), data_filtered["hSyntMag"].to_numpy()
 
 
 def load_galaxies(field_name):
@@ -224,13 +225,4 @@ def load_galaxies(field_name):
     )
     df.columns = col_names
     df = df[["RA", "DEC", "z_best"]]
-    return df["RA"].values, df["DEC"].values, df["z_best"].values
-
-
-    # Step 3: Assign column names
-    df.columns = col_names
-
-    # Step 4: Keep only RA, DEC, z_best
-    df = df[["RA", "DEC", "z_best"]]
-
     return df["RA"].values, df["DEC"].values, df["z_best"].values
