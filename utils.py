@@ -139,50 +139,6 @@ def empty_fields(P):
             mask[k] = 1
     return mask.astype(bool)
 
-def generate_SR_map(N_ra, N_dec, field_name, seeing_conditions):
-    P = np.load(
-        DATA_DIR / f"asterism_data_{field_name}_catalog_outer120arcsecs_inner20arcsecs_noPCAM.npy",
-        allow_pickle=True
-    )
-    RA = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_outer120arcsecs_inner20arcsecs_noPCAM_RA_positions.npy")
-    DEC = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_outer120arcsecs_inner20arcsecs_noPCAM_DEC_positions.npy")
-
-    SR = load_best_sr_from_bestjson(
-        DATA_DIR / f"HRM_{field_name}_120_20_{seeing_conditions}_blur_best_asterisms_updated.json"
-    )[0]
-    FWHM = load_best_fwhm_from_bestjson(
-        DATA_DIR / f"HRM_{field_name}_120_20_{seeing_conditions}_blur_best_asterisms_updated.json"
-    )[0]
-
-    mask = empty_fields(P)
-    RA_all = np.concatenate((RA[~mask], RA[mask]))
-    DEC_all = np.concatenate((DEC[~mask], DEC[mask]))
-    SR_all = np.concatenate((SR, np.zeros(np.sum(mask))))
-    FWHM_all = np.concatenate((FWHM, 500 * np.ones(np.sum(mask))))
-
-    points = np.column_stack((RA_all, DEC_all))
-    values_SR = SR_all
-    values_FWHM = FWHM_all
-
-    RA_i = np.linspace(RA_all.min(), RA_all.max(), N_ra)
-    DEC_i = np.linspace(DEC_all.min(), DEC_all.max(), N_dec)
-    RA_grid, DEC_grid = np.meshgrid(RA_i, DEC_i)
-
-    Z_sr = np.clip(griddata(points, values_SR, (RA_grid, DEC_grid), method="cubic"), 0, 1)
-    Z_sr = np.ma.masked_invalid(Z_sr)
-
-    Z_fwhm = griddata(points, values_FWHM, (RA_grid, DEC_grid), method="linear")
-    Z_fwhm = np.ma.masked_invalid(Z_fwhm)
-
-    return (
-        RA_i.astype(np.float32),
-        DEC_i.astype(np.float32),
-        RA_grid.astype(np.float32),
-        DEC_grid.astype(np.float32),
-        Z_sr.astype(np.float32),
-        Z_fwhm.astype(np.float32),
-    )
-
 def generate_SR_map_from_json(N_ra, N_dec, field_name, seeing_conditions, min_ngs=1):
     """
     min_ngs:
@@ -191,11 +147,11 @@ def generate_SR_map_from_json(N_ra, N_dec, field_name, seeing_conditions, min_ng
       - 1 => allow 1,2,3 (current behavior)
     """
     # 1) full positions (fixed grid indexing)
-    RA_full = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_outer120arcsecs_inner20arcsecs_noPCAM_RA_positions.npy")
-    DEC_full = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_outer120arcsecs_inner20arcsecs_noPCAM_DEC_positions.npy")
+    RA_full = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_turtle_rot48deg_vignetting_20arcsec_RA_positions.npy")
+    DEC_full = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_turtle_rot48deg_vignetting_20arcsec_DEC_positions.npy")
 
     # 2) JSON best
-    json_path = DATA_DIR / f"HRM_{field_name}_120_20_{seeing_conditions}_blur_best_asterisms_updated.json"
+    json_path = DATA_DIR / f"HRM_{field_name}_turtle_156_vignetting_{seeing_conditions}_blur_best_asterisms_updated.json"
     data = json.loads(json_path.read_text(encoding="utf-8"))
 
     nfields_total = int(data.get("nfields_total", len(RA_full)))
