@@ -1,0 +1,88 @@
+/* ================================
+   GLOBAL LAYOUT STABILITY
+================================ */
+
+.app-container {
+  width: 99vw;
+  height: 99vh;
+}
+
+.left-panel,
+.right-panel {
+  min-width: 0;   /* prevents flex overflow from Plotly */
+}
+
+.controls-panel {
+  box-sizing: border-box;
+}
+
+.options-row {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 60px;   /* espace horizontal */
+  row-gap: 14px;      /* espace vertical réduit */
+}
+
+.opt-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+}
+
+.coord-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+
+.coord-row input {
+  width: 240px;
+}
+
+/* Ensure Plotly graphs never overflow */
+.js-plotly-plot,
+.plot-container,
+.svg-container {
+  width: 100% !important;
+}
+
+/* ================================
+   LAPTOP / SMALL SCREEN TUNING
+   (keeps 2 columns, just denser)
+================================ */
+
+@media (max-width: 1400px) {
+
+  .controls-panel {
+    padding: 18px !important;
+  }
+
+  .right-panel > div:last-child {
+    padding: 18px !important;
+  }
+
+  .title-main {
+    font-size: 22px !important;
+  }
+
+  .title-sub {
+    font-size: 12px !important;
+  }
+
+  .options-row {
+    gap: 22px !important;
+  }
+
+  .opt-block > div {
+    margin-top: 6px !important;  
+  }
+
+  .controls-panel label {
+    font-size: 12px !important;
+  }
+
+  .coord-row input {
+    width: 200px;
+  }
+}
