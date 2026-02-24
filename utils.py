@@ -188,8 +188,8 @@ def generate_SR_map_from_json(N_ra, N_dec, field_name, seeing_conditions, min_ng
     DEC_i = np.linspace(np.nanmin(DEC_full), np.nanmax(DEC_full), N_dec)
     RA_grid, DEC_grid = np.meshgrid(RA_i, DEC_i)
 
-    Z_sr = np.clip(griddata(points, SR_all, (RA_grid, DEC_grid), method="cubic"), 0, 1)
-    Z_sr = np.ma.masked_invalid(Z_sr)
+    Z_sr = griddata(points, SR_all, (RA_grid, DEC_grid), method="linear")
+    # Z_sr = np.clip(Z_sr, 0, sr_max_json)
 
     Z_fwhm = griddata(points, FWHM_all, (RA_grid, DEC_grid), method="linear")
     Z_fwhm = np.ma.masked_invalid(Z_fwhm)
