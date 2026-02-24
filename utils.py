@@ -242,7 +242,7 @@ def generate_SR_map_from_json(N_ra, N_dec, field_name, seeing_conditions, min_ng
 
 
 def load_stars(field_name):
-    data = candels_catalog_tansform(DATA_DIR / f"{field_name}_stars.fits")
+    data = pd.read_csv(DATA_DIR / f"{field_name}_stars.csv")
     return data["ra"].to_numpy(), data["dec"].to_numpy(), data["hSyntMag"].to_numpy()
 
 

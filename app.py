@@ -377,6 +377,7 @@ app.layout = html.Div(
                                                         {"label": "FWHM", "value": "fwhm"}
                                                     ],
                                                     value="strehl",
+                                                    value="strehl",
                                                     inline=True,
                                                     labelStyle={"marginRight": "16px"}
                                                 )
@@ -582,6 +583,9 @@ def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data, ba
             y_title = "Galaxies with SR ≥ x (%)" if plot_type == "strehl" else "Galaxies with FWHM ≤ x (%)"
 
         gal_fig.update_layout(
+            title=label_plot + " value for selected galaxies at 2.2 microns",
+            xaxis=dict(title=label_plot, gridcolor=color_features, range=[min_Z, max_Z]),
+            yaxis=dict(title=y_title, gridcolor=color_features, range=[0, 100] if is_cumu else None),
             title=label_plot + " value for selected galaxies at 2.2 microns",
             xaxis=dict(title=label_plot, gridcolor=color_features, range=[min_Z, max_Z]),
             yaxis=dict(title=y_title, gridcolor=color_features, range=[0, 100] if is_cumu else None),
