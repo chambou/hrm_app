@@ -1,16 +1,19 @@
 import numpy as np
 import os
 import plotly.graph_objects as go
-import webbrowser
-from utils import *
 import copy
 from dash import Dash, dcc, html, Input, Output, State
+from utils import (
+    generate_SR_map_from_json,
+    load_galaxies,
+    load_stars,
+)
 
 # ============================================================
 # CONFIG
 # ============================================================
 PORT = int(os.environ.get("PORT", 8050))
-HOST = "127.0.0.1"
+HOST = os.environ.get("HOST", "127.0.0.2")
 
 min_FWHM = 10
 max_FWHM = 20
@@ -21,37 +24,42 @@ bckg_color = "#212121"#"rgba(20, 20, 20, 1)"
 color_features = "#065464"#"rgba(23, 240, 186, 0.6)"
 bckg_color_control = "#065464"#"rgba(23, 240, 186, 0.6)"
 field_name  ="COSMOS"
-seeing_conditions = 'median'
+DEFAULT_SEEING = "median"
 
 # ============================================================
-# MAP DATA
+# INITIAL MAP (to define fixed RA/Dec grids & bounds)
 # ============================================================
+ra_grid, dec_grid, RA, DEC, Z_sr0, Z_fwhm0 = generate_SR_map_from_json(
+    N_ra, N_dec, field_name, DEFAULT_SEEING)
 
-ra_grid, dec_grid, RA, DEC, Z_sr, Z_fwhm = generate_SR_map(N_ra,N_dec,field_name,seeing_conditions)
-Z = Z_sr
-min_SR = Z_sr.min()
-max_SR = Z_sr.max()
+# SR range depends on map values -> will be recomputed when seeing changes
+min_SR0 = float(np.min(Z_sr0))
+max_SR0 = float(np.max(Z_sr0))
 
 # ============================================================
-# GALAXY CATALOG
+# LOAD CATALOGS ONCE + FIXED MASK ONCE (bounds do not change)
 # ============================================================
 gal_ra, gal_dec, gal_z = load_galaxies(field_name)
-# Mask
+star_ra, star_dec, star_mag = load_stars(field_name)
+
 ra_min, ra_max = ra_grid.min(), ra_grid.max()
 dec_min, dec_max = dec_grid.min(), dec_grid.max()
-mask = (
+
+gal_mask_bounds = (
     (gal_ra >= ra_min) & (gal_ra <= ra_max) &
     (gal_dec >= dec_min) & (gal_dec <= dec_max)
 )
+gal_ra = gal_ra[gal_mask_bounds]
+gal_dec = gal_dec[gal_mask_bounds]
+gal_z = gal_z[gal_mask_bounds]
 
-gal_ra  = gal_ra[mask]
-gal_dec = gal_dec[mask]
-gal_z   = gal_z[mask]
-
-# ============================================================
-# STAR CATALOG
-# ============================================================
-star_ra, star_dec, star_mag = load_stars(field_name)
+star_mask_bounds = (
+    (star_ra >= ra_min) & (star_ra <= ra_max) &
+    (star_dec >= dec_min) & (star_dec <= dec_max)
+)
+star_ra = star_ra[star_mask_bounds]
+star_dec = star_dec[star_mask_bounds]
+star_mag = star_mag[star_mask_bounds]
 
 # ============================================================
 # UTILS
@@ -66,7 +74,7 @@ def z_at_galaxies(mask,Z):
     iy = np.abs(dec_grid[:, None] - gal_dec[mask]).argmin(axis=0)
     return Z[iy, ix]
 
-def make_base_heatmap(plot_type):
+def make_base_heatmap(plot_type, Z_sr, Z_fwhm, min_SR, max_SR):
     fig = go.Figure()
 
     if plot_type == "strehl":
@@ -184,15 +192,6 @@ def add_overlays(fig, gal_mask=None, show_gal=False, show_stars=True):
 
 
 # ============================================================
-# Create base figures
-# ============================================================
-BASE_FIGURES = {
-    "strehl": make_base_heatmap("strehl"),
-    "fwhm": make_base_heatmap("fwhm"),
-}
-
-
-# ============================================================
 # DASH APP
 # ============================================================
 app = Dash(__name__)
@@ -208,12 +207,15 @@ app.layout = html.Div(
         "padding": "12px",
         "boxSizing": "border-box",
         "fontFamily": "Arial",
-        "display": "flex",  # horizontal split
+        "display": "flex",
         "gap": "0px"
     },
     children=[
+        # Stores: keep current maps + base figs
+        dcc.Store(id="map-store"),
+        dcc.Store(id="basefig-store"),
 
-        # ---------------- Left column: Title + Sky map
+        # ---------------- Left column
         html.Div(
             style={
                 "flex": "1",
@@ -224,42 +226,37 @@ app.layout = html.Div(
                 "flexDirection": "column",
             },
             children=[
-                # Title (HTML, robuste)
                 html.Div(
                     style={"padding": "8px 12px"},
                     children=[
-                        html.Div(f"HARMONI – {field_name} field",
-                                style={"fontSize": 28, "fontWeight": "800"}),
+                        html.Div(f"HARMONI – {field_name} field", style={"fontSize": 28, "fontWeight": "800"}),
                         html.Div(
                             "Predicted performance of the Multi-Conjugate Adaptive Optics at 2.2 microns",
                             style={"fontSize": 14, "color": "#BBBBBB"}
                         ),
                     ],
                 ),
-
-                # Sky map
                 dcc.Graph(
                     id="sky-map",
-                    figure=BASE_FIGURES["strehl"],
-                    style={"flex": "1"},              # prend le reste de la hauteur
+                    figure=go.Figure(),   # filled by callback
+                    style={"flex": "1"},
                     config={"scrollZoom": True}
                 ),
             ]
         ),
-
 
         # ---------------- Vertical divider
         html.Div(
             style={
                 "width": "2px",
                 "backgroundColor": color_features,
-                "height": "100%",   # fill parent
-                "minHeight": "100%", # safety
+                "height": "100%",
+                "minHeight": "100%",
                 "marginRight": "10px"
             }
         ),
 
-        # ---------------- Right column: Controls + bottom plot
+        # ---------------- Right column
         html.Div(
             style={
                 "flex": "1",
@@ -269,12 +266,10 @@ app.layout = html.Div(
                 "gap": "0px"
             },
             children=[
-
-                # Top right: Controls
                 html.Div(
                     style={
                         "flex": "0 0 auto",
-                        "paddingLeft": "40px",   # only left,
+                        "paddingLeft": "40px",
                         "padding": "40px",
                         "backgroundColor": bckg_color_control,
                         "borderRadius": "8px"
@@ -284,45 +279,69 @@ app.layout = html.Div(
                             style={"display": "flex", "alignItems": "center", "gap": "10px"},
                             children=[
                                 html.Label("RA (deg):"),
-                                dcc.Input(
-                                    id="input-ra",
-                                    type="number",
-                                    step=0.001,
-                                    style={"backgroundColor": "white", "color": "black"}
-                                ),
+                                dcc.Input(id="input-ra", type="number", step=0.001,
+                                          style={"backgroundColor": "white", "color": "black"}),
                                 html.Label("Dec (deg):"),
-                                dcc.Input(
-                                    id="input-dec",
-                                    type="number",
-                                    step=0.001,
-                                    style={"backgroundColor": "white", "color": "black"}
-                                ),
+                                dcc.Input(id="input-dec", type="number", step=0.001,
+                                          style={"backgroundColor": "white", "color": "black"}),
                                 html.Button(
                                     "Evaluate metric",
                                     id="eval-button",
-                                    style={
-                                        "backgroundColor": "#333",
-                                        "color": "white",
-                                        "border": "1px solid #555",
-                                        "padding": "6px 12px"
-                                    }
+                                    style={"backgroundColor": "#333", "color": "white", "border": "1px solid #555",
+                                           "padding": "6px 12px"}
                                 ),
                                 html.Div(id="eval-output", style={"marginLeft": "12px"})
                             ]
                         ),
 
-
-
-                        # ---------------- Middle part: two columns of checkboxes
                         html.Div(
-                            style={
-                                "display": "flex",
-                                "marginTop": "20px",
-                                "gap": "60px"  # horizontal space between left/right columns
-                            },
+                            style={"display": "flex", "marginTop": "20px", "gap": "60px"},
                             children=[
+                                # Seeing conditions
+                                html.Div(
+                                    children=[
+                                        html.Label("Seeing conditions:", style={"fontWeight": "bold"}),
+                                        html.Div(
+                                            style={"marginTop": "12px"},
+                                            children=[
+                                                dcc.RadioItems(
+                                                    id="seeing-conditions",
+                                                    options=[
+                                                        {"label": "Median", "value": "median"},
+                                                        {"label": "Q1", "value": "Q1"},
+                                                    ],
+                                                    value=DEFAULT_SEEING,
+                                                    inline=True,
+                                                    labelStyle={"marginRight": "16px"}
+                                                )
+                                            ]
+                                        )
+                                    ]
+                                ),
 
-                                # Middle-left: Galaxies / Stars
+                                html.Div(
+                                    children=[
+                                        html.Label("NGS asterisms:", style={"fontWeight": "bold"}),
+                                        html.Div(
+                                            style={"marginTop": "12px"},
+                                            children=[
+                                                dcc.RadioItems(
+                                                    id="ngs-mode",
+                                                    options=[
+                                                        {"label": "Only 3 NGS", "value": 3},
+                                                        {"label": "2–3 NGS", "value": 2},
+                                                        {"label": "1–3 NGS", "value": 1},
+                                                    ],
+                                                    value=1,  # current behavior
+                                                    inline=True,
+                                                    labelStyle={"marginRight": "16px"},
+                                                )
+                                            ],
+                                        ),
+                                    ]
+                                ),
+
+                                # Display options
                                 html.Div(
                                     children=[
                                         html.Label("Display options:", style={"fontWeight": "bold"}),
@@ -335,7 +354,7 @@ app.layout = html.Div(
                                                         {"label": "Show Galaxies", "value": "gal"},
                                                         {"label": "Show Stars", "value": "stars"}
                                                     ],
-                                                    value=["stars"],  # default: stars visible
+                                                    value=["stars"],
                                                     inline=True,
                                                     inputStyle={"marginRight": "6px"}
                                                 )
@@ -344,7 +363,7 @@ app.layout = html.Div(
                                     ]
                                 ),
 
-                                # Middle-right: Strehl / FWHM + Histogram mode
+                                # Plot type
                                 html.Div(
                                     children=[
                                         html.Label("Plot type:", style={"fontWeight": "bold"}),
@@ -366,6 +385,7 @@ app.layout = html.Div(
                                     ]
                                 ),
 
+                                # Histogram mode
                                 html.Div(
                                     children=[
                                         html.Label("Histogram mode:", style={"fontWeight": "bold"}),
@@ -375,22 +395,19 @@ app.layout = html.Div(
                                                 dcc.RadioItems(
                                                     id="hist-mode",
                                                     options=[
-                                                            {"label": "Differential", "value": "diff"},
-                                                            {"label": "Cumulative", "value": "cumu"},
-                                                        ],
+                                                        {"label": "Differential", "value": "diff"},
+                                                        {"label": "Cumulative", "value": "cumu"},
+                                                    ],
                                                     value="diff",
                                                     inline=True,
                                                     labelStyle={"marginRight": "16px"}
-                                                    )
+                                                )
                                             ]
                                         )
                                     ]
                                 ),
                             ]
                         ),
-
-
-                        # ---------------- Bottom part -----------------
 
                         html.Div(style={"marginTop": "20px"}, children=[
                             html.Label("Galaxy redshift range", style={"fontWeight": "bold"}),
@@ -411,72 +428,89 @@ app.layout = html.Div(
                     ]
                 ),
 
-                # ---------------- Horizontal divider
                 html.Div(
-                    style={
-                        "height": "2px",
-                        "backgroundColor": color_features,
-                        "margin": "6px 0"
-                    }
+                    style={"height": "2px", "backgroundColor": color_features, "margin": "6px 0"}
                 ),
 
-                # Bottom right: Galaxy plot
                 html.Div(
-                    style={"flex": "1", "height": "100%","padding": "40px"},
-                    children=[
-                        dcc.Graph(
-                            id="galaxy-z-plot",
-                            style={"height": "100%"}
-                        )
-                    ]
+                    style={"flex": "1", "height": "100%", "padding": "40px"},
+                    children=[dcc.Graph(id="galaxy-z-plot", style={"height": "100%"})]
                 )
-
             ]
         )
-
     ]
 )
 
+# ============================================================
+# CALLBACK 1: recompute maps when seeing and ngs mode change (ONLY Z arrays + figs)
+# ============================================================
+@app.callback(
+    Output("map-store", "data"),
+    Output("basefig-store", "data"),
+    Input("seeing-conditions", "value"),
+    Input("ngs-mode", "value"),
+)
+def recompute_maps(seeing_conditions_value, min_ngs):
+    _, _, _, _, Z_sr, Z_fwhm = generate_SR_map_from_json(
+        N_ra, N_dec, field_name, seeing_conditions_value, min_ngs=int(min_ngs)
+    )
+
+    min_SR = float(np.min(Z_sr))
+    max_SR = float(np.max(Z_sr))
+
+    base_strehl = make_base_heatmap("strehl", Z_sr, Z_fwhm, min_SR, max_SR)
+    base_fwhm   = make_base_heatmap("fwhm",   Z_sr, Z_fwhm, min_SR, max_SR)
+
+    map_data = {
+        "Z_sr": Z_sr.tolist(),
+        "Z_fwhm": Z_fwhm.tolist(),
+        "min_SR": min_SR,
+        "max_SR": max_SR,
+        "min_ngs": int(min_ngs),
+        "seeing": seeing_conditions_value,
+    }
+    base_figs = {
+        "strehl": base_strehl.to_dict(),
+        "fwhm": base_fwhm.to_dict(),
+    }
+    return map_data, base_figs
 
 # ============================================================
-# CALLBACKS
+# CALLBACK 2: evaluate metric at RA/Dec
 # ============================================================
 @app.callback(
     Output("eval-output", "children"),
     Input("eval-button", "n_clicks"),
     State("input-ra", "value"),
     State("input-dec", "value"),
-    Input("plot-type", "value")
+    State("map-store", "data"),
+    Input("plot-type", "value"),
 )
-def evaluate_position(_, ra_val, dec_val,plot_type):
+def evaluate_position(_, ra_val, dec_val, map_data, plot_type):
     if ra_val is None or dec_val is None:
         return "Enter RA & Dec"
+    if map_data is None:
+        return "Map not ready"
 
-    if not (ra_grid.min() <= ra_val <= ra_grid.max() and
-            dec_grid.min() <= dec_val <= dec_grid.max()):
+    if not (ra_grid.min() <= ra_val <= ra_grid.max() and dec_grid.min() <= dec_val <= dec_grid.max()):
         return "Outside map"
 
+    Z_sr = np.array(map_data["Z_sr"])
+    Z_fwhm = np.array(map_data["Z_fwhm"])
 
     if plot_type == "strehl":
         Z = Z_sr
         label_Z = "SR"
-        label_cursor = "SR"
-        label_plot = "Strehl Ratio"
-        min_Z = min_SR
-        max_Z = max_SR
-        nbin_Z = nbin_SR
-    elif plot_type == "fwhm":
+    else:
         Z = Z_fwhm
         label_Z = "FWHM (mas)"
-        label_cursor = "FWHM"
-        label_plot = "FWHM (mas)"
-        min_Z = min_FWHM
-        max_Z = max_FWHM
-        nbin_Z = nbin_FWHM
 
-    z_val = nearest_z(ra_val, dec_val,Z)
+    z_val = nearest_z(ra_val, dec_val, Z)
     return f"{label_Z} = {z_val:.6f}"
 
+# ============================================================
+# CALLBACK 3: update sky map overlays + histogram
+# ============================================================
 @app.callback(
     Output("sky-map", "figure"),
     Output("galaxy-z-plot", "figure"),
@@ -484,54 +518,53 @@ def evaluate_position(_, ra_val, dec_val,plot_type):
     Input("display-options", "value"),
     Input("plot-type", "value"),
     Input("hist-mode", "value"),
+    Input("map-store", "data"),
+    Input("basefig-store", "data"),
 )
-def update_galaxies(z_range, display_options,plot_type, hist_mode):
+def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data, base_figs):
+    if map_data is None or base_figs is None:
+        empty = go.Figure()
+        empty.update_layout(template="plotly_dark", paper_bgcolor=bckg_color, plot_bgcolor=bckg_color)
+        return empty, empty
+
+    Z_sr = np.array(map_data["Z_sr"])
+    Z_fwhm = np.array(map_data["Z_fwhm"])
+    min_SR = float(map_data["min_SR"])
+    max_SR = float(map_data["max_SR"])
 
     if plot_type == "strehl":
         Z = Z_sr
-        label_Z = "SR"
-        label_cursor = "SR"
         label_plot = "Strehl Ratio"
         min_Z = min_SR
         max_Z = max_SR
         nbin_Z = nbin_SR
-    elif plot_type == "fwhm":
+    else:
         Z = Z_fwhm
-        label_Z = "FWHM (mas)"
-        label_cursor = "FWHM"
         label_plot = "FWHM (mas)"
         min_Z = min_FWHM
         max_Z = max_FWHM
         nbin_Z = nbin_FWHM
-        
+
     zmin, zmax = z_range
     mask = (gal_z >= zmin) & (gal_z <= zmax)
 
-    show_gal = "gal" in display_options
-    show_stars = "stars" in display_options
+    show_gal = "gal" in (display_options or [])
+    show_stars = "stars" in (display_options or [])
 
-    fig = copy.deepcopy(BASE_FIGURES[plot_type])
+    fig = go.Figure(base_figs[plot_type])
     fig = add_overlays(fig, gal_mask=mask, show_gal=show_gal, show_stars=show_stars)
 
     if np.any(mask):
-        zg = z_at_galaxies(mask,Z)
+        zg = z_at_galaxies(mask, Z)
 
         if plot_type == "fwhm":
-            # Transform zg: clip outside range to min_Z-1 / max_Z+1
             zg_clipped = np.where(zg < min_Z, min_Z - 1, zg)
             zg_clipped = np.where(zg_clipped > max_Z, max_Z + 1, zg_clipped)
         else:
             zg_clipped = zg
 
-
         is_cumu = (hist_mode == "cumu")
-
-        # Cumulative direction:
-        # - For SR: want % of galaxies with SR >= x  -> decreasing cumulative
-        # - For FWHM (and SR in differential): keep increasing as before
-        cumu_direction = "increasing"
-        if is_cumu and plot_type == "strehl":
-            cumu_direction = "decreasing"
+        cumu_direction = "decreasing" if (is_cumu and plot_type == "strehl") else "increasing"
 
         gal_fig = go.Figure(
             go.Histogram(
@@ -546,11 +579,7 @@ def update_galaxies(z_range, display_options,plot_type, hist_mode):
         if not is_cumu:
             y_title = "Galaxies (%) per bin"
         else:
-            if plot_type == "strehl":
-                y_title = "Galaxies with SR ≥ x (%)"
-            else:  # fwhm
-                y_title = "Galaxies with FWHM ≤ x (%)"
-
+            y_title = "Galaxies with SR ≥ x (%)" if plot_type == "strehl" else "Galaxies with FWHM ≤ x (%)"
 
         gal_fig.update_layout(
             title=label_plot + " value for selected galaxies at 2.2 microns",
@@ -576,6 +605,4 @@ def update_galaxies(z_range, display_options,plot_type, hist_mode):
 # MAIN
 # ============================================================
 if __name__ == "__main__":
-    PORT = int(os.environ.get("PORT", 8050))
-    HOST = os.environ.get("HOST", "127.0.0.2")
     app.run(debug=True, host=HOST, port=PORT, use_reloader=False)

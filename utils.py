@@ -183,6 +183,63 @@ def generate_SR_map(N_ra, N_dec, field_name, seeing_conditions):
         Z_fwhm.astype(np.float32),
     )
 
+def generate_SR_map_from_json(N_ra, N_dec, field_name, seeing_conditions, min_ngs=1):
+    """
+    min_ngs:
+      - 3 => only asterisms with exactly 3 NGS? (we interpret as at least 3, i.e. ==3 because max is 3 here)
+      - 2 => allow 2 or 3
+      - 1 => allow 1,2,3 (current behavior)
+    """
+    # 1) full positions (fixed grid indexing)
+    RA_full = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_outer120arcsecs_inner20arcsecs_noPCAM_RA_positions.npy")
+    DEC_full = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_outer120arcsecs_inner20arcsecs_noPCAM_DEC_positions.npy")
+
+    # 2) JSON best
+    json_path = DATA_DIR / f"HRM_{field_name}_120_20_{seeing_conditions}_blur_best_asterisms_updated.json"
+    data = json.loads(json_path.read_text(encoding="utf-8"))
+
+    nfields_total = int(data.get("nfields_total", len(RA_full)))
+    SR_full   = np.full(nfields_total, np.nan, dtype=float)
+    FWHM_full = np.full(nfields_total, np.nan, dtype=float)
+
+    # 3) fill via rec_field_idx, BUT filter on n_stars
+    for entry in data["best_by_field"]:
+        n_stars = int(entry.get("n_stars", 0))
+        if n_stars < int(min_ngs):
+            continue  # rejected by NGS filter
+
+        i = int(entry["rec_field_idx"])
+        strehl = entry["metrics"].get("strehl", [])
+        fwhm   = entry["metrics"].get("fwhm", [])
+
+        # sci_index=0
+        SR_full[i] = float(strehl[0]) if strehl else np.nan
+        # fwhm is [[...]]
+        FWHM_full[i] = float(fwhm[0][0]) if (fwhm and fwhm[0]) else np.nan
+
+    # 4) mask = fields without value (either missing or filtered out)
+    mask = ~np.isfinite(SR_full)
+
+    # 5) default values for interpolation
+    SR_all   = SR_full.copy()
+    FWHM_all = FWHM_full.copy()
+    SR_all[mask] = 0.0
+    FWHM_all[mask] = 500.0
+
+    points = np.column_stack([RA_full[:nfields_total], DEC_full[:nfields_total]])
+
+    RA_i = np.linspace(np.nanmin(RA_full), np.nanmax(RA_full), N_ra)
+    DEC_i = np.linspace(np.nanmin(DEC_full), np.nanmax(DEC_full), N_dec)
+    RA_grid, DEC_grid = np.meshgrid(RA_i, DEC_i)
+
+    Z_sr = np.clip(griddata(points, SR_all, (RA_grid, DEC_grid), method="cubic"), 0, 1)
+    Z_sr = np.ma.masked_invalid(Z_sr)
+
+    Z_fwhm = griddata(points, FWHM_all, (RA_grid, DEC_grid), method="linear")
+    Z_fwhm = np.ma.masked_invalid(Z_fwhm)
+
+    return RA_i, DEC_i, RA_grid, DEC_grid, Z_sr, Z_fwhm
+
 
 def load_stars(field_name):
     data = candels_catalog_tansform(DATA_DIR / f"{field_name}_stars.fits")
