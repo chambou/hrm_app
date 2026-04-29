@@ -139,7 +139,7 @@ def empty_fields(P):
             mask[k] = 1
     return mask.astype(bool)
 
-def generate_SR_map_from_json(N_ra, N_dec, field_name, seeing_conditions, min_ngs=1):
+def generate_SR_map_from_json(N_ra, N_dec, field_name, seeing_conditions, min_ngs=1, band="K"):
     """
     min_ngs:
       - 3 => only asterisms with exactly 3 NGS? (we interpret as at least 3, i.e. ==3 because max is 3 here)
@@ -147,11 +147,11 @@ def generate_SR_map_from_json(N_ra, N_dec, field_name, seeing_conditions, min_ng
       - 1 => allow 1,2,3 (current behavior)
     """
     # 1) full positions (fixed grid indexing)
-    RA_full = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_turtle_rot48deg_vignetting_20arcsec_RA_positions.npy")
-    DEC_full = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_turtle_rot48deg_vignetting_20arcsec_DEC_positions.npy")
+    RA_full = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_turtle_rot48deg_vignetting_0arcsec_RA_positions.npy")
+    DEC_full = np.load(DATA_DIR / f"asterism_data_{field_name}_catalog_turtle_rot48deg_vignetting_0arcsec_DEC_positions.npy")
 
     # 2) JSON best
-    json_path = DATA_DIR / f"HRM_{field_name}_turtle_156_vignetting_{seeing_conditions}_blur_best_asterisms_updated.json"
+    json_path = DATA_DIR / f"HRM_{field_name}_turtle_{seeing_conditions}_{band}_SOB_best_asterisms_updated.json"
     data = json.loads(json_path.read_text(encoding="utf-8"))
 
     nfields_total = int(data.get("nfields_total", len(RA_full)))

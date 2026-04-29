@@ -15,6 +15,8 @@ from utils import (
 PORT = int(os.environ.get("PORT", 8050))
 HOST = os.environ.get("HOST", "127.0.0.2")
 
+DEFAULT_BAND = "K"
+
 min_FWHM = 10
 max_FWHM = 20
 nbin_SR = 40
@@ -30,7 +32,7 @@ DEFAULT_SEEING = "median"
 # INITIAL MAP (to define fixed RA/Dec grids & bounds)
 # ============================================================
 ra_grid, dec_grid, RA, DEC, Z_sr0, Z_fwhm0 = generate_SR_map_from_json(
-    N_ra, N_dec, field_name, DEFAULT_SEEING)
+    N_ra, N_dec, field_name, DEFAULT_SEEING, band=DEFAULT_BAND)
 
 # SR range depends on map values -> will be recomputed when seeing changes
 min_SR0 = float(np.min(Z_sr0))
@@ -237,7 +239,7 @@ app.layout = html.Div(
                             style={"fontSize": 28, "fontWeight": "800"},
                         ),
                         html.Div(
-                            "Predicted performance of the Multi-Conjugate Adaptive Optics at 2.2 microns",
+                            "Predicted performance of the Multi-Conjugate Adaptive Optics - Single OB",
                             className="title-sub",
                             style={"fontSize": 14, "color": "#BBBBBB"},
                         ),
@@ -281,8 +283,7 @@ app.layout = html.Div(
                     className="controls-panel",
                     style={
                         "flex": "0 0 auto",
-                        "paddingLeft": "40px",
-                        "padding": "40px",
+                        "padding": "20px",
                         "backgroundColor": bckg_color_control,
                         "borderRadius": "8px",
                     },
@@ -290,47 +291,117 @@ app.layout = html.Div(
                         # ---- RA/Dec row
                         html.Div(
                             className="coord-row",
-                            style={"display": "flex", "alignItems": "center", "gap": "10px"},
+                            style={
+                                "display": "flex",
+                                "alignItems": "center",
+                                "gap": "12px",
+                                "marginBottom": "12px",
+                            },
                             children=[
                                 html.Label("RA (deg):"),
                                 dcc.Input(
                                     id="input-ra",
                                     type="number",
                                     step=0.001,
-                                    style={"backgroundColor": "white", "color": "black"},
+                                    placeholder="RA",
+                                    style={
+                                        "width": "110px",
+                                        "height": "34px",
+                                        "padding": "4px 8px",
+                                        "borderRadius": "6px",
+                                        "border": "1px solid #555",
+                                        "backgroundColor": "#2b2b2b",
+                                        "color": "white",
+                                        "fontSize": "13px",
+                                    },
                                 ),
                                 html.Label("Dec (deg):"),
                                 dcc.Input(
-                                    id="input-dec",
-                                    type="number",
-                                    step=0.001,
-                                    style={"backgroundColor": "white", "color": "black"},
-                                ),
+                                        id="input-dec",
+                                        type="number",
+                                        step=0.001,
+                                        placeholder="Dec",
+                                        style={
+                                            "width": "110px",
+                                            "height": "34px",
+                                            "padding": "4px 8px",
+                                            "borderRadius": "6px",
+                                            "border": "1px solid #555",
+                                            "backgroundColor": "#2b2b2b",
+                                            "color": "white",
+                                            "fontSize": "13px",
+                                        },
+                                    ),
                                 html.Button(
-                                    "Evaluate metric",
+                                    "Evaluate",
                                     id="eval-button",
                                     style={
-                                        "backgroundColor": "#333",
+                                        "height": "34px",
+                                        "padding": "0 14px",
+                                        "backgroundColor": "#0b7285",
                                         "color": "white",
-                                        "border": "1px solid #555",
-                                        "padding": "6px 12px",
+                                        "border": "none",
+                                        "borderRadius": "6px",
+                                        "fontSize": "13px",
+                                        "fontWeight": "500",
+                                        "cursor": "pointer",
+                                        "transition": "0.2s",
+                                        "boxShadow": "0 0 0 rgba(0,0,0,0)",
                                     },
                                 ),
-                                html.Div(id="eval-output", style={"marginLeft": "12px"}),
+                                html.Div(
+                                    id="eval-output",
+                                    style={
+                                        "marginLeft": "10px",
+                                        "fontSize": "13px",
+                                        "color": "#e9ecef",
+                                        "minWidth": "120px",
+                                    },
+                                ),
                             ],
                         ),
 
-                        # ---- Options row (clean)
+                        # ---- Options row 
                         html.Div(
                             className="options-row",
-                            style={"marginTop": "20px"},
+                            style={
+                                "marginTop": "16px",
+                                "display": "grid",
+                                "gridTemplateColumns": "repeat(3, minmax(0, 1fr))",
+                                "gap": "12px 18px",
+                                "alignItems": "start",
+                                "fontSize": "13px",
+                            },
                             children=[
                                 html.Div(
                                     className="opt-block",
                                     children=[
-                                        html.Label("Seeing conditions:", style={"fontWeight": "bold"}),
+                                        html.Label("Band:", style={"fontWeight": "bold"}),
                                         html.Div(
-                                            style={"marginTop": "12px"},
+                                            style={"marginTop": "6px"},
+                                            children=[
+                                                dcc.RadioItems(
+                                                    id="band",
+                                                    options=[
+                                                        {"label": "K", "value": "K"},
+                                                        {"label": "H", "value": "H"},
+                                                        {"label": "J", "value": "J"},
+                                                    ],
+                                                    value=DEFAULT_BAND,
+                                                    inline=True,
+                                                    labelStyle={"marginRight": "10px"},
+                                                )
+                                            ],
+                                        ),
+                                    ],
+                                ),
+
+                                html.Div(
+                                    className="opt-block",
+                                    children=[
+                                        html.Label("Seeing:", style={"fontWeight": "bold"}),
+                                        html.Div(
+                                            style={"marginTop": "6px"},
                                             children=[
                                                 dcc.RadioItems(
                                                     id="seeing-conditions",
@@ -340,7 +411,7 @@ app.layout = html.Div(
                                                     ],
                                                     value=DEFAULT_SEEING,
                                                     inline=True,
-                                                    labelStyle={"marginRight": "16px"},
+                                                    labelStyle={"marginRight": "10px"},
                                                 )
                                             ],
                                         ),
@@ -350,20 +421,20 @@ app.layout = html.Div(
                                 html.Div(
                                     className="opt-block",
                                     children=[
-                                        html.Label("NGS asterisms:", style={"fontWeight": "bold"}),
+                                        html.Label("NGS:", style={"fontWeight": "bold"}),
                                         html.Div(
-                                            style={"marginTop": "12px"},
+                                            style={"marginTop": "6px"},
                                             children=[
                                                 dcc.RadioItems(
                                                     id="ngs-mode",
                                                     options=[
-                                                        {"label": "Only 3 NGS", "value": 3},
-                                                        {"label": "2–3 NGS", "value": 2},
-                                                        {"label": "1–3 NGS", "value": 1},
+                                                        {"label": "3", "value": 3},
+                                                        {"label": "2–3", "value": 2},
+                                                        {"label": "1–3", "value": 1},
                                                     ],
                                                     value=1,
                                                     inline=True,
-                                                    labelStyle={"marginRight": "16px"},
+                                                    labelStyle={"marginRight": "10px"},
                                                 )
                                             ],
                                         ),
@@ -373,19 +444,20 @@ app.layout = html.Div(
                                 html.Div(
                                     className="opt-block",
                                     children=[
-                                        html.Label("Display options:", style={"fontWeight": "bold"}),
+                                        html.Label("Display:", style={"fontWeight": "bold"}),
                                         html.Div(
-                                            style={"marginTop": "12px"},
+                                            style={"marginTop": "6px"},
                                             children=[
                                                 dcc.Checklist(
                                                     id="display-options",
                                                     options=[
-                                                        {"label": "Show Galaxies", "value": "gal"},
-                                                        {"label": "Show Stars", "value": "stars"},
+                                                        {"label": "Galaxies", "value": "gal"},
+                                                        {"label": "Stars", "value": "stars"},
                                                     ],
                                                     value=["stars"],
                                                     inline=True,
-                                                    inputStyle={"marginRight": "6px"},
+                                                    labelStyle={"marginRight": "10px"},
+                                                    inputStyle={"marginRight": "4px"},
                                                 )
                                             ],
                                         ),
@@ -395,19 +467,19 @@ app.layout = html.Div(
                                 html.Div(
                                     className="opt-block",
                                     children=[
-                                        html.Label("Plot type:", style={"fontWeight": "bold"}),
+                                        html.Label("Plot:", style={"fontWeight": "bold"}),
                                         html.Div(
-                                            style={"marginTop": "12px"},
+                                            style={"marginTop": "6px"},
                                             children=[
                                                 dcc.RadioItems(
                                                     id="plot-type",
                                                     options=[
-                                                        {"label": "Strehl Ratio", "value": "strehl"},
+                                                        {"label": "SR", "value": "strehl"},
                                                         {"label": "FWHM", "value": "fwhm"},
                                                     ],
                                                     value="strehl",
                                                     inline=True,
-                                                    labelStyle={"marginRight": "16px"},
+                                                    labelStyle={"marginRight": "10px"},
                                                 )
                                             ],
                                         ),
@@ -417,19 +489,19 @@ app.layout = html.Div(
                                 html.Div(
                                     className="opt-block",
                                     children=[
-                                        html.Label("Histogram mode:", style={"fontWeight": "bold"}),
+                                        html.Label("Histogram:", style={"fontWeight": "bold"}),
                                         html.Div(
-                                            style={"marginTop": "12px"},
+                                            style={"marginTop": "6px"},
                                             children=[
                                                 dcc.RadioItems(
                                                     id="hist-mode",
                                                     options=[
-                                                        {"label": "Differential", "value": "diff"},
-                                                        {"label": "Cumulative", "value": "cumu"},
+                                                        {"label": "Diff.", "value": "diff"},
+                                                        {"label": "Cumu.", "value": "cumu"},
                                                     ],
                                                     value="diff",
                                                     inline=True,
-                                                    labelStyle={"marginRight": "16px"},
+                                                    labelStyle={"marginRight": "10px"},
                                                 )
                                             ],
                                         ),
@@ -440,9 +512,17 @@ app.layout = html.Div(
 
                         # ---- Slider
                         html.Div(
-                            style={"marginTop": "20px"},
+                            style={"marginTop": "14px"},
                             children=[
-                                html.Label("Galaxy redshift range", style={"fontWeight": "bold"}),
+                                html.Label(
+                                    "Galaxy redshift",
+                                    style={
+                                        "fontWeight": "bold",
+                                        "fontSize": "13px",
+                                        "marginBottom": "6px",
+                                        "display": "block",
+                                    },
+                                ),
                                 html.Div(
                                     style={"marginTop": "12px"},
                                     children=[
@@ -452,7 +532,19 @@ app.layout = html.Div(
                                             max=10.0,
                                             step=1,
                                             value=[0, 10.0],
-                                            tooltip={"placement": "bottom", "always_visible": True},
+                                            tooltip={
+                                                "placement": "bottom",
+                                                "always_visible": False,
+                                                "template": "{value}",
+                                            },
+                                            marks={
+                                                0: {"label": "0", "style": {"fontSize": "11px"}},
+                                                2: {"label": "2", "style": {"fontSize": "11px"}},
+                                                4: {"label": "4", "style": {"fontSize": "11px"}},
+                                                6: {"label": "6", "style": {"fontSize": "11px"}},
+                                                8: {"label": "8", "style": {"fontSize": "11px"}},
+                                                10: {"label": "10", "style": {"fontSize": "11px"}},
+                                            },
                                         )
                                     ],
                                 ),
@@ -472,7 +564,12 @@ app.layout = html.Div(
 
                 # ---------------- Bottom right: Galaxy plot
                 html.Div(
-                    style={"flex": "1", "height": "100%", "padding": "40px"},
+                    style={
+                        "flex": "1",
+                        "height": "100%",
+                        "padding": "20px 40px 40px 40px",
+                        "marginTop": "-10px",
+                    },
                     children=[
                         dcc.Graph(
                             id="galaxy-z-plot",
@@ -492,12 +589,15 @@ app.layout = html.Div(
 @app.callback(
     Output("map-store", "data"),
     Output("basefig-store", "data"),
+    Input("band", "value"),
     Input("seeing-conditions", "value"),
     Input("ngs-mode", "value"),
 )
-def recompute_maps(seeing_conditions_value, min_ngs):
+def recompute_maps(band, seeing_conditions_value, min_ngs):
     _, _, _, _, Z_sr, Z_fwhm = generate_SR_map_from_json(
-        N_ra, N_dec, field_name, seeing_conditions_value, min_ngs=int(min_ngs)
+        N_ra, N_dec, field_name, seeing_conditions_value, 
+        min_ngs=int(min_ngs), 
+        band=band,
     )
 
     min_SR = float(np.min(Z_sr))
@@ -512,6 +612,7 @@ def recompute_maps(seeing_conditions_value, min_ngs):
         "min_SR": min_SR,
         "max_SR": max_SR,
         "min_ngs": int(min_ngs),
+        "band": band,
         "seeing": seeing_conditions_value,
     }
     base_figs = {
@@ -576,6 +677,7 @@ def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data, ba
     Z_fwhm = np.array(map_data["Z_fwhm"])
     min_SR = float(map_data["min_SR"])
     max_SR = float(map_data["max_SR"])
+    band = map_data.get("band", DEFAULT_BAND)
 
     if plot_type == "strehl":
         Z = Z_sr
@@ -617,7 +719,7 @@ def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data, ba
                 nbinsx=nbin_Z,
                 histnorm="percent",
                 cumulative=dict(enabled=is_cumu, direction=cumu_direction),
-                marker=dict(color="orange", opacity=0.9),
+                marker=dict(color="#831ec7", opacity=0.85),
             )
         )
 
@@ -627,13 +729,13 @@ def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data, ba
             y_title = "Galaxies with SR ≥ x (%)" if plot_type == "strehl" else "Galaxies with FWHM ≤ x (%)"
 
         gal_fig.update_layout(
-            title=label_plot + " value for selected galaxies at 2.2 microns",
+            title=f"{label_plot} value for selected galaxies in band {band} - Single OB",
             xaxis=dict(title=label_plot, gridcolor=color_features, range=[min_Z, max_Z]),
             yaxis=dict(title=y_title, gridcolor=color_features, range=[0, 100] if is_cumu else None),
             template="plotly_dark",
             paper_bgcolor=bckg_color,
             plot_bgcolor=bckg_color,
-            margin=dict(l=60, r=30, t=50, b=50)
+            margin=dict(l=60, r=30, t=35, b=50)
         )
     else:
         gal_fig = go.Figure()
