@@ -28,9 +28,50 @@ bckg_color_control = "#065464"#"rgba(23, 240, 186, 0.6)"
 DEFAULT_FIELD = "COSMOS"
 DEFAULT_SEEING = "median"
 
+FIELD_CACHE = {}
 # ============================================================
 # UTILS
 # ============================================================
+def get_field_catalogs(field_name, ra_grid_local, dec_grid_local):
+    cache_key = field_name
+
+    if cache_key not in FIELD_CACHE:
+        gal_ra, gal_dec, gal_z = load_galaxies(field_name)
+        star_ra, star_dec, star_mag = load_stars(field_name)
+
+        FIELD_CACHE[cache_key] = {
+            "gal_ra": gal_ra,
+            "gal_dec": gal_dec,
+            "gal_z": gal_z,
+            "star_ra": star_ra,
+            "star_dec": star_dec,
+            "star_mag": star_mag,
+        }
+
+    data = FIELD_CACHE[cache_key]
+
+    ra_min, ra_max = ra_grid_local.min(), ra_grid_local.max()
+    dec_min, dec_max = dec_grid_local.min(), dec_grid_local.max()
+
+    gal_mask_bounds = (
+        (data["gal_ra"] >= ra_min) & (data["gal_ra"] <= ra_max) &
+        (data["gal_dec"] >= dec_min) & (data["gal_dec"] <= dec_max)
+    )
+
+    star_mask_bounds = (
+        (data["star_ra"] >= ra_min) & (data["star_ra"] <= ra_max) &
+        (data["star_dec"] >= dec_min) & (data["star_dec"] <= dec_max)
+    )
+
+    return (
+        data["gal_ra"][gal_mask_bounds],
+        data["gal_dec"][gal_mask_bounds],
+        data["gal_z"][gal_mask_bounds],
+        data["star_ra"][star_mask_bounds],
+        data["star_dec"][star_mask_bounds],
+        data["star_mag"][star_mask_bounds],
+    )
+
 def z_at_galaxies(mask, Z, ra_grid_local, dec_grid_local, gal_ra_local, gal_dec_local):
     ix = np.abs(ra_grid_local[:, None] - gal_ra_local[mask]).argmin(axis=0)
     iy = np.abs(dec_grid_local[:, None] - gal_dec_local[mask]).argmin(axis=0)
@@ -175,7 +216,6 @@ app.layout = html.Div(
     children=[
         # Stores: keep current maps + base figs
         dcc.Store(id="map-store"),
-        dcc.Store(id="basefig-store"),
 
         # ---------------- Left column: Title + Sky map
         html.Div(
@@ -569,7 +609,6 @@ app.layout = html.Div(
 # ============================================================
 @app.callback(
     Output("map-store", "data"),
-    Output("basefig-store", "data"),
     Input("field-name", "value"),
     Input("band", "value"),
     Input("seeing-conditions", "value"),
@@ -582,29 +621,8 @@ def recompute_maps(field_name, band, seeing_conditions_value, min_ngs):
         band=band,
     )
 
-    gal_ra_new, gal_dec_new, gal_z_new = load_galaxies(field_name)
-    star_ra_new, star_dec_new, star_mag_new = load_stars(field_name)
-
-    ra_min, ra_max = ra_grid_new.min(), ra_grid_new.max()
-    dec_min, dec_max = dec_grid_new.min(), dec_grid_new.max()
-
-    gal_mask_bounds = (
-        (gal_ra_new >= ra_min) & (gal_ra_new <= ra_max) &
-        (gal_dec_new >= dec_min) & (gal_dec_new <= dec_max)
-    )
-
-    star_mask_bounds = (
-        (star_ra_new >= ra_min) & (star_ra_new <= ra_max) &
-        (star_dec_new >= dec_min) & (star_dec_new <= dec_max)
-    )
-
     min_SR = float(np.nanmin(Z_sr))
     max_SR = float(np.nanmax(Z_sr))
-
-    base_strehl = make_base_heatmap("strehl", Z_sr, Z_fwhm, min_SR, max_SR,
-                                     ra_grid_new, dec_grid_new)
-    base_fwhm   = make_base_heatmap("fwhm",   Z_sr, Z_fwhm, min_SR, max_SR,
-                                     ra_grid_new, dec_grid_new)
 
     map_data = {
         "field_name": field_name,
@@ -617,20 +635,9 @@ def recompute_maps(field_name, band, seeing_conditions_value, min_ngs):
         "min_ngs": int(min_ngs),
         "band": band,
         "seeing": seeing_conditions_value,
-
-        "gal_ra": gal_ra_new[gal_mask_bounds].tolist(),
-        "gal_dec": gal_dec_new[gal_mask_bounds].tolist(),
-        "gal_z": gal_z_new[gal_mask_bounds].tolist(),
-
-        "star_ra": star_ra_new[star_mask_bounds].tolist(),
-        "star_dec": star_dec_new[star_mask_bounds].tolist(),
-        "star_mag": star_mag_new[star_mask_bounds].tolist(),
     }
-    base_figs = {
-        "strehl": base_strehl.to_dict(),
-        "fwhm": base_fwhm.to_dict(),
-    }
-    return map_data, base_figs
+
+    return map_data
 
 # ============================================================
 # CALLBACK 2: evaluate metric at RA/Dec
@@ -681,10 +688,9 @@ def evaluate_position(_, ra_val, dec_val, map_data, plot_type):
     Input("plot-type", "value"),
     Input("hist-mode", "value"),
     Input("map-store", "data"),
-    Input("basefig-store", "data"),
 )
-def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data, base_figs):
-    if map_data is None or base_figs is None:
+def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data):
+    if map_data is None :
         empty = go.Figure()
         empty.update_layout(template="plotly_dark", paper_bgcolor=bckg_color, plot_bgcolor=bckg_color)
         return empty, empty
@@ -698,13 +704,13 @@ def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data, ba
     ra_grid_local = np.array(map_data["ra_grid"])
     dec_grid_local = np.array(map_data["dec_grid"])
 
-    gal_ra_local = np.array(map_data["gal_ra"])
-    gal_dec_local = np.array(map_data["gal_dec"])
-    gal_z_local = np.array(map_data["gal_z"])
+    field_name = map_data["field_name"]
 
-    star_ra_local = np.array(map_data["star_ra"])
-    star_dec_local = np.array(map_data["star_dec"])
-    star_mag_local = np.array(map_data["star_mag"])
+    gal_ra_local, gal_dec_local, gal_z_local, star_ra_local, star_dec_local, star_mag_local = get_field_catalogs(
+        field_name,
+        ra_grid_local,
+        dec_grid_local,
+    )
 
     if plot_type == "strehl":
         Z = Z_sr
@@ -725,7 +731,15 @@ def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data, ba
     show_gal = "gal" in (display_options or [])
     show_stars = "stars" in (display_options or [])
 
-    fig = go.Figure(base_figs[plot_type])
+    fig = make_base_heatmap(
+        plot_type,
+        Z_sr,
+        Z_fwhm,
+        min_SR,
+        max_SR,
+        ra_grid_local,
+        dec_grid_local,
+    )
     fig = add_overlays(
         fig,
         gal_ra_local, gal_dec_local,
