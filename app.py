@@ -25,58 +25,18 @@ N_ra, N_dec = 300, 300
 bckg_color = "#212121"#"rgba(20, 20, 20, 1)"
 color_features = "#065464"#"rgba(23, 240, 186, 0.6)"
 bckg_color_control = "#065464"#"rgba(23, 240, 186, 0.6)"
-field_name  ="COSMOS"
+DEFAULT_FIELD = "COSMOS"
 DEFAULT_SEEING = "median"
-
-# ============================================================
-# INITIAL MAP (to define fixed RA/Dec grids & bounds)
-# ============================================================
-ra_grid, dec_grid, RA, DEC, Z_sr0, Z_fwhm0 = generate_SR_map_from_json(
-    N_ra, N_dec, field_name, DEFAULT_SEEING, band=DEFAULT_BAND)
-
-# SR range depends on map values -> will be recomputed when seeing changes
-min_SR0 = float(np.min(Z_sr0))
-max_SR0 = float(np.max(Z_sr0))
-
-# ============================================================
-# LOAD CATALOGS ONCE + FIXED MASK ONCE (bounds do not change)
-# ============================================================
-gal_ra, gal_dec, gal_z = load_galaxies(field_name)
-star_ra, star_dec, star_mag = load_stars(field_name)
-
-ra_min, ra_max = ra_grid.min(), ra_grid.max()
-dec_min, dec_max = dec_grid.min(), dec_grid.max()
-
-gal_mask_bounds = (
-    (gal_ra >= ra_min) & (gal_ra <= ra_max) &
-    (gal_dec >= dec_min) & (gal_dec <= dec_max)
-)
-gal_ra = gal_ra[gal_mask_bounds]
-gal_dec = gal_dec[gal_mask_bounds]
-gal_z = gal_z[gal_mask_bounds]
-
-star_mask_bounds = (
-    (star_ra >= ra_min) & (star_ra <= ra_max) &
-    (star_dec >= dec_min) & (star_dec <= dec_max)
-)
-star_ra = star_ra[star_mask_bounds]
-star_dec = star_dec[star_mask_bounds]
-star_mag = star_mag[star_mask_bounds]
 
 # ============================================================
 # UTILS
 # ============================================================
-def nearest_z(ra_val, dec_val, Z):
-    ix = np.abs(ra_grid - ra_val).argmin()
-    iy = np.abs(dec_grid - dec_val).argmin()
+def z_at_galaxies(mask, Z, ra_grid_local, dec_grid_local, gal_ra_local, gal_dec_local):
+    ix = np.abs(ra_grid_local[:, None] - gal_ra_local[mask]).argmin(axis=0)
+    iy = np.abs(dec_grid_local[:, None] - gal_dec_local[mask]).argmin(axis=0)
     return Z[iy, ix]
 
-def z_at_galaxies(mask,Z):
-    ix = np.abs(ra_grid[:, None] - gal_ra[mask]).argmin(axis=0)
-    iy = np.abs(dec_grid[:, None] - gal_dec[mask]).argmin(axis=0)
-    return Z[iy, ix]
-
-def make_base_heatmap(plot_type, Z_sr, Z_fwhm, min_SR, max_SR):
+def make_base_heatmap(plot_type, Z_sr, Z_fwhm, min_SR, max_SR, ra_grid_local, dec_grid_local):
     fig = go.Figure()
 
     if plot_type == "strehl":
@@ -96,8 +56,8 @@ def make_base_heatmap(plot_type, Z_sr, Z_fwhm, min_SR, max_SR):
 
     fig.add_trace(
         go.Heatmap(
-            x=ra_grid,
-            y=dec_grid,
+            x=ra_grid_local,
+            y=dec_grid_local,
             z=Z,
             zmin=min_Z,        # set minimum of color scale
             zmax=max_Z,        # set maximum of color scale
@@ -124,7 +84,7 @@ def make_base_heatmap(plot_type, Z_sr, Z_fwhm, min_SR, max_SR):
     return fig
 
 
-def add_overlays(fig, gal_mask=None, show_gal=False, show_stars=True):
+def add_overlays(fig, gal_ra, gal_dec, star_ra, star_dec, star_mag, gal_mask=None, show_gal=False, show_stars=True):
 
     if show_gal and gal_mask is not None and np.any(gal_mask):
         # Halo
@@ -196,7 +156,7 @@ def add_overlays(fig, gal_mask=None, show_gal=False, show_stars=True):
 # DASH APP
 # ============================================================
 app = Dash(__name__)
-app.title = f"HARMONI – {field_name}"
+app.title = "HARMONI"
 server = app.server
 
 app.layout = html.Div(
@@ -234,7 +194,7 @@ app.layout = html.Div(
                     style={"padding": "8px 12px"},
                     children=[
                         html.Div(
-                            f"HARMONI – {field_name} field",
+                            "HARMONI",
                             className="title-main",
                             style={"fontSize": 28, "fontWeight": "800"},
                         ),
@@ -367,12 +327,33 @@ app.layout = html.Div(
                             style={
                                 "marginTop": "16px",
                                 "display": "grid",
-                                "gridTemplateColumns": "repeat(3, minmax(0, 1fr))",
+                                "gridTemplateColumns": "repeat(4, minmax(0, 1fr))",
                                 "gap": "12px 18px",
                                 "alignItems": "start",
                                 "fontSize": "13px",
                             },
                             children=[
+                                html.Div(
+                                    className="opt-block",
+                                    children=[
+                                        html.Label("Field:", style={"fontWeight": "bold"}),
+                                        html.Div(
+                                            style={"marginTop": "6px"},
+                                            children=[
+                                                dcc.RadioItems(
+                                                    id="field-name",
+                                                    options=[
+                                                        {"label": "COSMOS", "value": "COSMOS"},
+                                                        {"label": "UDS", "value": "UDS"},
+                                                    ],
+                                                    value=DEFAULT_FIELD,
+                                                    inline=True,
+                                                    labelStyle={"marginRight": "10px"},
+                                                )
+                                            ],
+                                        ),
+                                    ],
+                                ),
                                 html.Div(
                                     className="opt-block",
                                     children=[
@@ -496,10 +477,10 @@ app.layout = html.Div(
                                                 dcc.RadioItems(
                                                     id="hist-mode",
                                                     options=[
-                                                        {"label": "Diff.", "value": "diff"},
                                                         {"label": "Cumu.", "value": "cumu"},
+                                                        {"label": "Diff.", "value": "diff"},
                                                     ],
-                                                    value="diff",
+                                                    value="cumu",
                                                     inline=True,
                                                     labelStyle={"marginRight": "10px"},
                                                 )
@@ -589,24 +570,46 @@ app.layout = html.Div(
 @app.callback(
     Output("map-store", "data"),
     Output("basefig-store", "data"),
+    Input("field-name", "value"),
     Input("band", "value"),
     Input("seeing-conditions", "value"),
     Input("ngs-mode", "value"),
 )
-def recompute_maps(band, seeing_conditions_value, min_ngs):
-    _, _, _, _, Z_sr, Z_fwhm = generate_SR_map_from_json(
-        N_ra, N_dec, field_name, seeing_conditions_value, 
-        min_ngs=int(min_ngs), 
+def recompute_maps(field_name, band, seeing_conditions_value, min_ngs):
+    ra_grid_new, dec_grid_new, _, _, Z_sr, Z_fwhm = generate_SR_map_from_json(
+        N_ra, N_dec, field_name, seeing_conditions_value,
+        min_ngs=int(min_ngs),
         band=band,
     )
 
-    min_SR = float(np.min(Z_sr))
-    max_SR = float(np.max(Z_sr))
+    gal_ra_new, gal_dec_new, gal_z_new = load_galaxies(field_name)
+    star_ra_new, star_dec_new, star_mag_new = load_stars(field_name)
 
-    base_strehl = make_base_heatmap("strehl", Z_sr, Z_fwhm, min_SR, max_SR)
-    base_fwhm   = make_base_heatmap("fwhm",   Z_sr, Z_fwhm, min_SR, max_SR)
+    ra_min, ra_max = ra_grid_new.min(), ra_grid_new.max()
+    dec_min, dec_max = dec_grid_new.min(), dec_grid_new.max()
+
+    gal_mask_bounds = (
+        (gal_ra_new >= ra_min) & (gal_ra_new <= ra_max) &
+        (gal_dec_new >= dec_min) & (gal_dec_new <= dec_max)
+    )
+
+    star_mask_bounds = (
+        (star_ra_new >= ra_min) & (star_ra_new <= ra_max) &
+        (star_dec_new >= dec_min) & (star_dec_new <= dec_max)
+    )
+
+    min_SR = float(np.nanmin(Z_sr))
+    max_SR = float(np.nanmax(Z_sr))
+
+    base_strehl = make_base_heatmap("strehl", Z_sr, Z_fwhm, min_SR, max_SR,
+                                     ra_grid_new, dec_grid_new)
+    base_fwhm   = make_base_heatmap("fwhm",   Z_sr, Z_fwhm, min_SR, max_SR,
+                                     ra_grid_new, dec_grid_new)
 
     map_data = {
+        "field_name": field_name,
+        "ra_grid": ra_grid_new.tolist(),
+        "dec_grid": dec_grid_new.tolist(),
         "Z_sr": Z_sr.tolist(),
         "Z_fwhm": Z_fwhm.tolist(),
         "min_SR": min_SR,
@@ -614,6 +617,14 @@ def recompute_maps(band, seeing_conditions_value, min_ngs):
         "min_ngs": int(min_ngs),
         "band": band,
         "seeing": seeing_conditions_value,
+
+        "gal_ra": gal_ra_new[gal_mask_bounds].tolist(),
+        "gal_dec": gal_dec_new[gal_mask_bounds].tolist(),
+        "gal_z": gal_z_new[gal_mask_bounds].tolist(),
+
+        "star_ra": star_ra_new[star_mask_bounds].tolist(),
+        "star_dec": star_dec_new[star_mask_bounds].tolist(),
+        "star_mag": star_mag_new[star_mask_bounds].tolist(),
     }
     base_figs = {
         "strehl": base_strehl.to_dict(),
@@ -637,8 +648,11 @@ def evaluate_position(_, ra_val, dec_val, map_data, plot_type):
         return "Enter RA & Dec"
     if map_data is None:
         return "Map not ready"
+    
+    ra_grid_local = np.array(map_data["ra_grid"])
+    dec_grid_local = np.array(map_data["dec_grid"])
 
-    if not (ra_grid.min() <= ra_val <= ra_grid.max() and dec_grid.min() <= dec_val <= dec_grid.max()):
+    if not (ra_grid_local.min() <= ra_val <= ra_grid_local.max() and dec_grid_local.min() <= dec_val <= dec_grid_local.max()):
         return "Outside map"
 
     Z_sr = np.array(map_data["Z_sr"])
@@ -651,7 +665,9 @@ def evaluate_position(_, ra_val, dec_val, map_data, plot_type):
         Z = Z_fwhm
         label_Z = "FWHM (mas)"
 
-    z_val = nearest_z(ra_val, dec_val, Z)
+    ix = np.abs(ra_grid_local - ra_val).argmin()
+    iy = np.abs(dec_grid_local - dec_val).argmin()
+    z_val = Z[iy, ix]
     return f"{label_Z} = {z_val:.6f}"
 
 # ============================================================
@@ -675,9 +691,20 @@ def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data, ba
 
     Z_sr = np.array(map_data["Z_sr"])
     Z_fwhm = np.array(map_data["Z_fwhm"])
-    min_SR = float(map_data["min_SR"])
-    max_SR = float(map_data["max_SR"])
+    min_SR = float(np.nanmin(Z_sr))
+    max_SR = float(np.nanmax(Z_sr))
     band = map_data.get("band", DEFAULT_BAND)
+
+    ra_grid_local = np.array(map_data["ra_grid"])
+    dec_grid_local = np.array(map_data["dec_grid"])
+
+    gal_ra_local = np.array(map_data["gal_ra"])
+    gal_dec_local = np.array(map_data["gal_dec"])
+    gal_z_local = np.array(map_data["gal_z"])
+
+    star_ra_local = np.array(map_data["star_ra"])
+    star_dec_local = np.array(map_data["star_dec"])
+    star_mag_local = np.array(map_data["star_mag"])
 
     if plot_type == "strehl":
         Z = Z_sr
@@ -693,16 +720,23 @@ def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data, ba
         nbin_Z = nbin_FWHM
 
     zmin, zmax = z_range
-    mask = (gal_z >= zmin) & (gal_z <= zmax)
+    mask = (gal_z_local >= zmin) & (gal_z_local <= zmax)
 
     show_gal = "gal" in (display_options or [])
     show_stars = "stars" in (display_options or [])
 
     fig = go.Figure(base_figs[plot_type])
-    fig = add_overlays(fig, gal_mask=mask, show_gal=show_gal, show_stars=show_stars)
+    fig = add_overlays(
+        fig,
+        gal_ra_local, gal_dec_local,
+        star_ra_local, star_dec_local, star_mag_local,
+        gal_mask=mask,
+        show_gal=show_gal,
+        show_stars=show_stars,
+    )
 
     if np.any(mask):
-        zg = z_at_galaxies(mask, Z)
+        zg = z_at_galaxies(mask, Z, ra_grid_local, dec_grid_local, gal_ra_local, gal_dec_local)
 
         if plot_type == "fwhm":
             zg_clipped = np.where(zg < min_Z, min_Z - 1, zg)
