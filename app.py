@@ -368,7 +368,7 @@ app.layout = html.Div(
                                 "marginTop": "16px",
                                 "display": "grid",
                                 "gridTemplateColumns": "repeat(4, minmax(0, 1fr))",
-                                "gap": "12px 18px",
+                                "gap": "10px 16px",
                                 "alignItems": "start",
                                 "fontSize": "13px",
                             },
@@ -388,7 +388,7 @@ app.layout = html.Div(
                                                     ],
                                                     value=DEFAULT_FIELD,
                                                     inline=True,
-                                                    labelStyle={"marginRight": "10px"},
+                                                    labelStyle={"marginRight": "1px"},
                                                 )
                                             ],
                                         ),
@@ -410,7 +410,7 @@ app.layout = html.Div(
                                                     ],
                                                     value=DEFAULT_BAND,
                                                     inline=True,
-                                                    labelStyle={"marginRight": "10px"},
+                                                    labelStyle={"marginRight": "1px"},
                                                 )
                                             ],
                                         ),
@@ -432,7 +432,7 @@ app.layout = html.Div(
                                                     ],
                                                     value=DEFAULT_SEEING,
                                                     inline=True,
-                                                    labelStyle={"marginRight": "10px"},
+                                                    labelStyle={"marginRight": "1px"},
                                                 )
                                             ],
                                         ),
@@ -451,11 +451,11 @@ app.layout = html.Div(
                                                     options=[
                                                         {"label": "3", "value": 3},
                                                         {"label": "2–3", "value": 2},
-                                                        {"label": "1–3", "value": 1},
+                                                        {"label": "all", "value": 1},
                                                     ],
                                                     value=1,
                                                     inline=True,
-                                                    labelStyle={"marginRight": "10px"},
+                                                    labelStyle={"marginRight": "1px"},
                                                 )
                                             ],
                                         ),
@@ -477,8 +477,8 @@ app.layout = html.Div(
                                                     ],
                                                     value=["stars"],
                                                     inline=True,
-                                                    labelStyle={"marginRight": "10px"},
-                                                    inputStyle={"marginRight": "4px"},
+                                                    labelStyle={"marginRight": "1px"},
+                                                    inputStyle={"marginRight": "2px"},
                                                 )
                                             ],
                                         ),
@@ -500,7 +500,7 @@ app.layout = html.Div(
                                                     ],
                                                     value="strehl",
                                                     inline=True,
-                                                    labelStyle={"marginRight": "10px"},
+                                                    labelStyle={"marginRight": "1px"},
                                                 )
                                             ],
                                         ),
@@ -522,7 +522,7 @@ app.layout = html.Div(
                                                     ],
                                                     value="cumu",
                                                     inline=True,
-                                                    labelStyle={"marginRight": "10px"},
+                                                    labelStyle={"marginRight": "1px"},
                                                 )
                                             ],
                                         ),
