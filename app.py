@@ -385,6 +385,7 @@ app.layout = html.Div(
                                                     options=[
                                                         {"label": "COSMOS", "value": "COSMOS"},
                                                         {"label": "UDS", "value": "UDS"},
+                                                        {"label": "GOODSS", "value": "GOODSS"},
                                                     ],
                                                     value=DEFAULT_FIELD,
                                                     inline=True,
@@ -621,6 +622,9 @@ def recompute_maps(field_name, band, seeing_conditions_value, min_ngs):
         band=band,
     )
 
+    Z_sr = np.array(Z_sr, dtype=float)
+    Z_fwhm = np.array(Z_fwhm, dtype=float)
+
     min_SR = float(np.nanmin(Z_sr))
     max_SR = float(np.nanmax(Z_sr))
 
@@ -662,8 +666,8 @@ def evaluate_position(_, ra_val, dec_val, map_data, plot_type):
     if not (ra_grid_local.min() <= ra_val <= ra_grid_local.max() and dec_grid_local.min() <= dec_val <= dec_grid_local.max()):
         return "Outside map"
 
-    Z_sr = np.array(map_data["Z_sr"])
-    Z_fwhm = np.array(map_data["Z_fwhm"])
+    Z_sr = np.array(map_data["Z_sr"], dtype=float)
+    Z_fwhm = np.array(map_data["Z_fwhm"], dtype=float)
 
     if plot_type == "strehl":
         Z = Z_sr
@@ -695,10 +699,13 @@ def update_galaxies(z_range, display_options, plot_type, hist_mode, map_data):
         empty.update_layout(template="plotly_dark", paper_bgcolor=bckg_color, plot_bgcolor=bckg_color)
         return empty, empty
 
-    Z_sr = np.array(map_data["Z_sr"])
-    Z_fwhm = np.array(map_data["Z_fwhm"])
+    Z_sr = np.array(map_data["Z_sr"], dtype=float)
+    Z_fwhm = np.array(map_data["Z_fwhm"], dtype=float)
+    Z_sr = np.array(Z_sr, dtype=float)
+    Z_fwhm = np.array(Z_fwhm, dtype=float)
     min_SR = float(np.nanmin(Z_sr))
     max_SR = float(np.nanmax(Z_sr))
+    
     band = map_data.get("band", DEFAULT_BAND)
 
     ra_grid_local = np.array(map_data["ra_grid"])
